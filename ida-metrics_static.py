@@ -477,10 +477,12 @@ class Metrics:
                                 else:
                                     edges.add((prev_head, hex(r)))
                             edges.add((hex(head), hex(r)))
-        # i#7: Currently we're using internal IDA functionality to add edges
-        # and boundaries but it doesn't work for functions which have jumps beyond
-        # function boundaries (or jumps to "red" areas of code). Now we're generating 
-        # warning in such situations but we need to manually parse all instructions.
+        # i#7: New algorithm of edges and boundaries constructing is required..
+        # Now boundaries and edges are making by using internal IDA functionality 
+        # but it doesn't work for functions which have jumps beyond function boundaries
+        # (or jumps to "red" areas of code). Now we're generating warning in such 
+        # situations but we need to manually parse all instructions.
+        
         # set bbls using edges and boundaries
         # NOTE: We can handle if jump xrefs to chunk address space.
         for chunk in chunks:
