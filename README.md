@@ -40,6 +40,7 @@ Supported the following metrics:
     13. Boundary value metric (function/module)
     
 Additional functionality:
+
      - node graph generation (function)
      
      - basic block boundaries generation (function)
