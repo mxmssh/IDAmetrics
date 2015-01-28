@@ -13,6 +13,7 @@ Python 2.5
 IDAPython 1.2.0
 
 Supported the following metrics:
+    
     1. Lines of code (function/module)
     
     2. Average lines of code per basic block (module)
