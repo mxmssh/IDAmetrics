@@ -70,6 +70,12 @@ CALL_INSTRUCTION = 1
 BRANCH_INSTRUCTION = 2
 ASSIGNMENT_INSTRUCTION = 3
 
+__EA64__ = idaapi.BADADDR == 0xFFFFFFFFFFFFFFFFL
+
+FUNCATTR_END     =  4     # function end address
+if __EA64__:
+    FUNCATTR_END     = 8
+
 # group of assignment instructions ($5.1.1 vol.1 Intel x86 manual):
 assign_instructions_general = ["mov", "cmov", "xchg", "bswap", "xadd", "ad", "sub",
                        "sbb", "imul", "mul", "idiv", "div", "inc", "dec", "neg",
@@ -125,8 +131,10 @@ class Metrics_function:
         self.function_ea = function_ea
         self.loc_count = 0
         self.bbl_count = 0
+        self.bbls_boundaries = dict()
         self.condition_count = 0
         self.calls_count = 0
+        self.node_graph = dict()
         self.CC = 0
         self.CL = 0
         self.assign_count = 0
@@ -136,6 +144,10 @@ class Metrics_function:
         self.Halstead_basic = Halstead_metric()
         self.Harrison = 0
         self.boundary_values = 0.0
+        self.span_metric = 0 #todo
+        self.Oviedo = 0 #todo
+        self.Chepin = 0 #todo
+        self.global_vars_access = 0 #todo
 class Metrics:
     def __init__(self):
         self.total_loc_count = 0
@@ -144,7 +156,6 @@ class Metrics:
         self.total_func_count = 0
         self.total_condition_count = 0
         self.total_assign_count = 0
-        self.node_graph = dict()
         self.CC_total = 0
         self.CL_total = 0
         self.ABC_total = 0
@@ -153,13 +164,22 @@ class Metrics:
         self.Pivovarsky_total = 0
         self.Harrison_total = 0.0
         self.boundary_values_total = 0.0
+        self.span_metric_total = 0 #todo
+        self.Oviedo_total = 0 #todo
+        self.Chepin_total = 0 #todo
+        self.global_vars_access_total = 0 #todo
         self.functions = dict()
-
+    
+    def start_analysis(self):
+        """
+        The function starts static metrics analysis.
+        @return - None
+        """
         # For each of the segments
-        for seg_ea in Segments():
+        for seg_ea in idautils.Segments():
             # For each of the functions
-            for function_ea in Functions(seg_ea, SegEnd(seg_ea)):
-                function_name = GetFunctionName(function_ea)
+            for function_ea in idautils.Functions(seg_ea, idc.SegEnd(seg_ea)):
+                function_name = idc.GetFunctionName(function_ea)
                 self.functions[function_name] = self.get_static_metrics(function_ea)
                 self.total_loc_count += self.functions[function_name].loc_count
                 self.total_bbl_count += self.functions[function_name].bbl_count
@@ -194,7 +214,7 @@ class Metrics:
 
         while 1:
             prev_head = PrevHead(head, 0)
-            if isFlow(GetFlags(prev_head)):
+            if isFlow(idc.GetFlags(prev_head)):
                 head = prev_head
                 if prev_head >= SegEnd(head):
                     raise Exception("Can't identify bbl head")
@@ -214,13 +234,13 @@ class Metrics:
         """
         # Enumerate all chunks in the function
         chunks = list()
-        first_chunk = FirstFuncFchunk(f_start)
-        chunks.append((first_chunk, GetFchunkAttr(first_chunk, FUNCATTR_END)))
+        first_chunk = idc.FirstFuncFchunk(f_start)
+        chunks.append((first_chunk, idc.GetFchunkAttr(first_chunk, idc.FUNCATTR_END)))
         next_chunk = first_chunk
         while next_chunk != 0xffffffffL:
-            next_chunk = NextFuncFchunk(f_start, next_chunk)
+            next_chunk = idc.NextFuncFchunk(f_start, next_chunk)
             if next_chunk != 0xffffffffL:
-                chunks.append((next_chunk, GetFchunkAttr(next_chunk, FUNCATTR_END)))
+                chunks.append((next_chunk, idc.GetFchunkAttr(next_chunk, idc.FUNCATTR_END)))
         return chunks
 
     def get_subgraph_nodes_count(self, node, node_graph, nodes_passed):
@@ -238,7 +258,7 @@ class Metrics:
             return 1
         else:
             nodes_passed.append(node)
-        child_nodes = self.node_graph.get(node, None)
+        child_nodes = node_graph.get(node, None)
         if child_nodes != None:
             for child_node in child_nodes:
                 if child_node in nodes_passed:
@@ -290,7 +310,7 @@ class Metrics:
             return 0, nodes_passed
         else:
             nodes_passed.append(node)
-        child_nodes = self.node_graph.get(node, None)
+        child_nodes = node_graph.get(node, None)
         if child_nodes != None:
             for child_node in child_nodes:
                 if child_node in nodes_passed:
@@ -383,6 +403,35 @@ class Metrics:
                 node_graph[bbl[0]] = None
         return node_graph
 
+    def get_bbls(self, chunks, boundaries, edges):
+        """
+        Set bbls using edges and boundaries
+        @chunks - a list of function chunks
+        @boundaries - a list of function boundaries (see get_static_metrics)
+        @edges - a list of function edges (see get_static_metrics)
+        @return - a set of bbls boundaries
+        """
+        bbls = []
+        bbl = []
+        # NOTE: We can handle if jump xrefs to chunk address space.        
+        for chunk in chunks:
+            for head in idautils.Heads(chunk[0], chunk[1]):
+                if head in boundaries or head in edges:
+                    if len(bbl) > 0:
+                        bbls.append(bbl)
+                        bbl = []
+                    bbl.append(hex(head))
+                elif GetInstructionType(head) == BRANCH_INSTRUCTION:
+                    bbl.append(hex(head))
+                    bbls.append(bbl)
+                    bbl = []
+                else:
+                    bbl.append(hex(head))
+        # add last basic block
+        if len(bbl) > 0:
+            bbls.append(bbl)
+        return bbls
+
     def get_static_metrics(self, function_ea):
         """
         The function calculate all supported metrics.
@@ -391,12 +440,10 @@ class Metrics:
         """
 
         f_start = function_ea
-        f_end = FindFuncEnd(function_ea)
+        f_end = idc.FindFuncEnd(function_ea)
         function_metrics = Metrics_function(function_ea)
 
         edges = set()
-        bbls = []
-        bbl = []
         boundaries = Set((f_start,))
         mnemonics = dict()
         operands = dict()
@@ -405,15 +452,15 @@ class Metrics:
         chunks = self.enumerate_function_chunks(f_start)
         # For each defined chunk in the function.
         for chunk in chunks:
-            for head in Heads(chunk[0], chunk[1]):
+            for head in idautils.Heads(chunk[0], chunk[1]):
                 # If the element is an instruction
                 if head == hex(0xffffffffL):
                     raise Exception("Invalid head for parsing")
-                if isCode(GetFlags(head)):
+                if isCode(idc.GetFlags(head)):
                     function_metrics.loc_count += 1
                     # Get the references made from the current instruction
                     # and keep only the ones local to the function.
-                    refs = CodeRefsFrom(head, 0)
+                    refs = idautils.CodeRefsFrom(head, 0)
                     refs_filtered = set()
                     for ref in refs:
                         if ref == hex(0xffffffffL):
@@ -433,8 +480,8 @@ class Metrics:
                     elif instruction_type == ASSIGNMENT_INSTRUCTION:
                         function_metrics.assign_count += 1
                     # Get the mnemonic and increment the mnemonic count
-                    mnem = GetMnem(head)
-                    comment = GetCommentEx(head, 0)
+                    mnem = idc.GetMnem(head)
+                    comment = idc.GetCommentEx(head, 0)
                     if comment != None and 'switch' in comment and 'jump' not in comment:
                         case_count = comment[7:]
                         space_index = case_count.find(" ")
@@ -444,7 +491,7 @@ class Metrics:
                     mnemonics[mnem] = mnemonics.get(mnem, 0) + 1
                     i = 0
                     while i < 4:
-                        op = GetOpnd(head, i)                      
+                        op = idc.GetOpnd(head, i)                      
                         if op != "":
                             operands[op] = operands.get(op, 0) + 1
                         i += 1
@@ -454,11 +501,11 @@ class Metrics:
                         # For instance, a conditional jump will not branch
                         # if the condition is not met, so we save that
                         # reference as well.
-                        next_head = NextHead(head, chunk[1])
+                        next_head = idc.NextHead(head, chunk[1])
                         if next_head == hex(0xffffffffL):
                             print "Invalid next head after ", head
                             raise Exception("Invalid next head")
-                        if isFlow(GetFlags(next_head)):
+                        if isFlow(idc.GetFlags(next_head)):
                             refs.add(next_head)
 
                         # Update the boundaries found so far.
@@ -469,8 +516,8 @@ class Metrics:
                             # If the flow could also come from the address
                             # previous to the destination of the branching
                             # an edge is created.
-                            if isFlow(GetFlags(r)):
-                                prev_head = hex(PrevHead(r, chunk[0]))
+                            if isFlow(idc.GetFlags(r)):
+                                prev_head = hex(idc.PrevHead(r, chunk[0]))
                                 if prev_head == hex(0xffffffffL):
                                     edges.add((hex(head), hex(r)))
                                     #raise Exception("invalid reference to previous instruction for", hex(r))
@@ -482,25 +529,10 @@ class Metrics:
         # but it doesn't work for functions which have jumps beyond function boundaries
         # (or jumps to "red" areas of code). Now we're generating warning in such 
         # situations but we need to manually parse all instructions.
-        
-        # set bbls using edges and boundaries
-        # NOTE: We can handle if jump xrefs to chunk address space.
-        for chunk in chunks:
-            for head in Heads(chunk[0], chunk[1]):
-                if head in boundaries or head in edges:
-                    if len(bbl) > 0:
-                        bbls.append(bbl)
-                        bbl = []
-                    bbl.append(hex(head))
-                elif GetInstructionType(head) == BRANCH_INSTRUCTION:
-                    bbl.append(hex(head))
-                    bbls.append(bbl)
-                    bbl = []
-                else:
-                    bbl.append(hex(head))
-        if len(bbl) > 0:
-            bbls.append(bbl)
-
+        bbls = self.get_bbls(chunks, boundaries, edges)
+        # save bbls boundaries in dict
+        for bbl in bbls:
+            function_metrics.bbls_boundaries[bbl[0]] = [x for x in bbl]
         #Cyclomatic complexity CC = E - V + 2
         function_metrics.CC = len(edges) - len(boundaries) + 2
         #Basic blocks count
@@ -513,13 +545,13 @@ class Metrics:
                                pow(function_metrics.calls_count, 2)
         function_metrics.ABC = math.sqrt(function_metrics.ABC)
         # Create node graph
-        self.node_graph = self.make_graph(edges, bbls, boundaries)
+        function_metrics.node_graph = self.make_graph(edges, bbls, boundaries)
 
         #Harrison metric: f = sum(ci) i: 0...n
-        function_metrics.Harrison = self.get_harrison_metric(self.node_graph, bbls)
+        function_metrics.Harrison = self.get_harrison_metric(function_metrics.node_graph, bbls)
 
         #boundary values metric: Sa = sum(nodes_complexity)
-        function_metrics.boundary_values = self.get_boundary_value_metric(self.node_graph)
+        function_metrics.boundary_values = self.get_boundary_value_metric(function_metrics.node_graph)
         function_metrics.boundary_values = function_metrics.boundary_values
         
         #CC_modified assumes switch (without default) as 1 edge and 1 node
@@ -528,7 +560,7 @@ class Metrics:
         else:
             function_metrics.CC_modified = function_metrics.CC
         #Pivovarsky metric: N(G) = CC_modified + sum(pi) i: 0...n
-        function_metrics.Pivovarsky = function_metrics.CC_modified + self.get_boundary_value_metric(self.node_graph, True)
+        function_metrics.Pivovarsky = function_metrics.CC_modified + self.get_boundary_value_metric(function_metrics.node_graph, True)
         
         #Halstead metric. see http://en.wikipedia.org/wiki/Halstead_complexity_measures
         function_metrics.Halstead_basic.N1 = function_metrics.loc_count
@@ -544,6 +576,7 @@ class Metrics:
 print "Start metrics calculation"
 
 metrics_total = Metrics()
+metrics_total.start_analysis()
 print 'Average lines of code in a function:', metrics_total.average_loc_count
 print 'Total number of functions:', metrics_total.total_func_count
 print 'Total lines of code:', metrics_total.total_loc_count
