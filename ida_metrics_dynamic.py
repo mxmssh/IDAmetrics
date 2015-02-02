@@ -52,7 +52,6 @@ class Metrics_dynamic:
         self.bbls_executed_total = 0
         self.functions_executed_total = 0
         self.calls_executed_total = 0
-        self.HenrynCafura_total = 0.0 #todo
         self.functions = dict()
 
 
