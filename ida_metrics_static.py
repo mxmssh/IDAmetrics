@@ -147,8 +147,8 @@ class Metrics_function:
         self.boundary_values = 0.0
         self.span_metric = 0
         self.vars_local = dict()
-        self.vars_args = 0
-        self.Oviedo = 0 #todo
+        self.vars_args = dict()
+        self.Oviedo = 0
         self.Chepin = 0 #todo
         self.global_vars_access = 0
         self.global_vars_metric = 0.0
@@ -173,7 +173,7 @@ class Metrics:
         self.Harrison_total = 0.0
         self.boundary_values_total = 0.0
         self.span_metric_total = 0
-        self.Oviedo_total = 0 #todo
+        self.Oviedo_total = 0
         self.Chepin_total = 0 #todo
         self.global_vars_dict = dict()
         self.global_vars_metric_total = 0.0
@@ -181,7 +181,7 @@ class Metrics:
         self.HenrynCafura_total = 0.0 #todo
         self.CardnGlass_total = 0.0 #todo
         self.functions = dict()
-    
+
     def start_analysis(self):
         """
         The function starts static metrics analysis.
@@ -203,7 +203,7 @@ class Metrics:
                 self.Pivovarsky_total += self.functions[function_name].Pivovarsky
                 self.Harrison_total += self.functions[function_name].Harrison
                 self.boundary_values_total += self.functions[function_name].boundary_values
-                
+
                 self.Halstead_total.n1 += self.functions[function_name].Halstead_basic.n1
                 self.Halstead_total.n2 += self.functions[function_name].Halstead_basic.n2
                 self.Halstead_total.N1 += self.functions[function_name].Halstead_basic.N1
@@ -212,14 +212,16 @@ class Metrics:
                 self.CC_total += self.functions[function_name].CC
                 self.CL_total += self.functions[function_name].CL
                 self.ABC_total += self.functions[function_name].ABC
-                
+
                 self.span_metric_total += self.functions[function_name].span_metric
-                
+
+                self.Oviedo_total += self.functions[function_name].Oviedo
+
         self.average_loc_count = self.total_loc_count / self.total_func_count
         self.Halstead_total.calculate()
         self.global_vars_metric_total = self.add_global_vars_metric()
-        
-        
+
+
     def add_global_vars_metric(self):
         total_metric_count = 0
         for function in self.functions:
@@ -288,7 +290,7 @@ class Metrics:
                 nodes_count += self.get_subgraph_nodes_count(child_node, node_graph, nodes_passed)
                 nodes_count += 1
         return nodes_count
-        
+
     def get_boundary_value_metric(self, node_graph, pivovarsky = False):
         """
         Function returns absolute boundary value metric or Pi value for
@@ -312,7 +314,7 @@ class Metrics:
                 else:
                     boundary_value += 1
         if not pivovarsky:
-            boundary_value -= 1 #exclude terminal node for boundary value metric 
+            boundary_value -= 1 #exclude terminal node for boundary value metric
         return boundary_value
 
     def get_node_complexity(self, node, node_graph, bbls_dict, nodes_passed):
@@ -343,8 +345,8 @@ class Metrics:
                 else:
                     loc_measure += len(bbls_node)
                     loc_measure += self.get_node_complexity(child_node, node_graph, bbls_dict, nodes_passed)
-        return loc_measure        
-    
+        return loc_measure
+
     def get_harrison_metric(self, node_graph, bbls):
         """
         The function calculates Harrison metric.
@@ -360,7 +362,7 @@ class Metrics:
             childs = node_graph.get(node, None)
             if childs == None or len(childs) != 2:
                 loc_measure_node = bbls_dict.get(node, None)
-                if loc_measure_node != None:              
+                if loc_measure_node != None:
                     loc_measure += len(loc_measure_node)
                 else:
                     print "WARNING: couldn't find bbl for node: ", node
@@ -391,7 +393,7 @@ class Metrics:
         # i#6 This function needs re-factoring. Now it has ugly
         # additional functionality to make the graph correct for
         # functions with chunks and to add terminal nodes. (xref i#7)
-        
+
         for edge_from,edge_to in edges:
             if edge_from == hex(0xffffffffL):
                 raise Exception("Invalid edge reference", edge_from)
@@ -399,7 +401,7 @@ class Metrics:
         for bbl in bbls:
             bbls_dict[bbl[len(bbl)-1]] = [x for x in bbl]
         boundaries_list = [hex(x) for x in boundaries]
-        
+
         for edge_from in edges_dict:
             node_edges_to = edges_dict[edge_from]
             if node_edges_to == None:
@@ -407,13 +409,13 @@ class Metrics:
             # check for additional chunks (xref i#8)
             if edge_from not in boundaries_list:
                 bbl_edge_from = bbls_dict.get(edge_from, None)
-                if bbl_edge_from == None:                    
+                if bbl_edge_from == None:
                     print "WARNING: Can't find bbl for ", edge_from
                 else:
                     node_graph[bbl_edge_from[0]] = node_edges_to
             else:
                 node_graph[edge_from] = node_edges_to
-        
+
         if len(node_graph) == 0 and len(edges_dict) == 0 and len(boundaries_list) == 1:
             node_graph[boundaries_list[0]] = None #it means that graph has only single root node
         elif len(node_graph) == 0 and len(edges_dict) !=0:
@@ -435,7 +437,7 @@ class Metrics:
         """
         bbls = []
         bbl = []
-        # NOTE: We can handle if jump xrefs to chunk address space.        
+        # NOTE: We can handle if jump xrefs to chunk address space.
         for chunk in chunks:
             for head in idautils.Heads(chunk[0], chunk[1]):
                 if head in boundaries or head in edges:
@@ -453,7 +455,7 @@ class Metrics:
         if len(bbl) > 0:
             bbls.append(bbl)
         return bbls
-    
+
     def get_instr_operands(self, head):
         """
         @head - instruction address
@@ -463,12 +465,12 @@ class Metrics:
         i = 0
         instr_op = list()
         while i < 4:
-            op = idc.GetOpnd(head, i)    
+            op = idc.GetOpnd(head, i)
             if op != "":
                 instr_op.append((op, GetOpType(head, i)))
-            i += 1       
+            i += 1
         return instr_op
-    
+
     def is_operand_called(self, op, bbl):
         for instr in bbl:
             instr_type = GetInstructionType(int(instr,16))
@@ -477,26 +479,25 @@ class Metrics:
                 instr_ops = self.get_instr_operands(int(instr, 16))
                 if op in instr_ops:
                     return True
-                #trying to replace ds: and check again
+                #trying to replace ds: and check it again
                 op = op.replace("ds:","")
                 comment = GetDisasm(int(instr,16))
                 if comment != None and op in comment:
                     return True
-        return False      
-    
-    def get_function_variables(self, function_ea):
+        return False
+
+    def get_function_params(self, function_ea):
         """
-        The function returns two lists: function parameters,
-        function local variables
+        The function returns a list of function arguments
         @function_ea - function entry point
-        @return - function parameters, function local variables
+        @return - function parameters
         """
         function_params = list()
-        function_loc_vars = list()
-        
-        
-        return function_params, function_loc_vars
-        
+
+        #todo determine function args and return values
+
+        return function_params
+
     def get_span_metric(self, bbls_dict, function_ea):
         """
         The function calculates span metric.
@@ -505,7 +506,6 @@ class Metrics:
         @return - span metric
         """
         span_metric = 0
-        function_params, function_loc_vars = self.get_function_variables(function_ea)
         for bbl_key, bbl in bbls_dict.items():
             for head in bbl:
                 instr_op = self.get_instr_operands(int(head, 16))
@@ -515,7 +515,7 @@ class Metrics:
                 for op,type in instr_op:
                     if self.is_operand_called(op, bbl):
                         continue
-                    if type >= idc.o_mem and type <= o_displ: 
+                    if type >= idc.o_mem and type <= o_displ:
                         span_metric += 1
         return span_metric
 
@@ -525,10 +525,42 @@ class Metrics:
             return True
         return False
 
-    def is_var_local(self, operand):
-        
-        
-        return False
+    def get_local_var_name(self, operand):
+        # i#8 Now we can't identify variables which is handled by registers.
+        # We can only identify stack local variables.
+        operand = operand.replace(" ", "")
+        name = ""
+        if operand.count("+") == 1:
+            # [base reg+name]
+            name = operand[operand.find("+") + 1:operand.find("]")]
+        elif operand.count("+") == 2:
+            name = operand[operand.rfind("+") + 1:operand.find("]")]
+        elif operand.count("+") > 2:
+            print "WARNING: unknown operand mask ", operand
+            name = None
+        else:
+            name = None
+        return name
+
+    def get_oviedo_df(self, local_vars):
+        oviedo_df = 0
+        # get local variables usage count, except initialization, such as:
+        # mov [ebp+var_0], some_value
+        for local_var in local_vars:
+            usage_list = local_vars.get(local_var, None)
+            if usage_list == None:
+                print "WARNING: empty usage list for ", local_var
+            for instr_addr in usage_list:
+                instr_mnem = idc.GetMnem(int(instr_addr, 16))
+                if instr_mnem.startswith('mov'):
+                    # get local var position
+                    operands = self.get_instr_operands(int(instr_addr, 16))
+                    for idx, (operand, type) in enumerate(operands):
+                        if local_var in operand and idx == 0:
+                            oviedo_df -= 1
+                            break
+            oviedo_df += len(usage_list)
+        return oviedo_df
 
     def get_static_metrics(self, function_ea):
         """
@@ -585,9 +617,9 @@ class Metrics:
                         space_index = case_count.find(" ")
                         case_count = case_count[:space_index]
                         case_count = int(case_count)
-                        cases_in_switches += case_count 
+                        cases_in_switches += case_count
                     mnemonics[mnem] = mnemonics.get(mnem, 0) + 1
-                    
+
                     ops = self.get_instr_operands(head)
                     for idx, (op,type) in enumerate(ops):
                         operands[op] = operands.get(op, 0) + 1
@@ -595,6 +627,11 @@ class Metrics:
                             if self.is_var_global(GetOperandValue(head,idx)) and "__" not in op:
                                 self.global_vars_dict[op] = operands.get(op, 0) + 1
                                 function_metrics.global_vars_access += 1
+                        elif type == 3 or type == 4 and idc.GetFunctionAttr(function_ea, FUNCATTR_FRSIZE) != 0:
+                            name = self.get_local_var_name(op)
+                            if name:
+                                function_metrics.vars_local.setdefault(name, []).append(hex(head))
+
                     if refs:
                         # If the flow continues also to the next (address-wise)
                         # instruction, we add a reference to it.
@@ -624,10 +661,11 @@ class Metrics:
                                 else:
                                     edges.add((prev_head, hex(r)))
                             edges.add((hex(head), hex(r)))
+        print function_metrics.vars_local
         # i#7: New algorithm of edges and boundaries constructing is required..
-        # Now boundaries and edges are making by using internal IDA functionality 
+        # Now boundaries and edges are making by using internal IDA functionality
         # but it doesn't work for functions which have jumps beyond function boundaries
-        # (or jumps to "red" areas of code). Now we're generating warning in such 
+        # (or jumps to "red" areas of code). Now we're generating warning in such
         # situations but we need to manually parse all instructions.
         bbls = self.get_bbls(chunks, boundaries, edges)
         # save bbls boundaries in dict
@@ -653,7 +691,7 @@ class Metrics:
         #boundary values metric: Sa = sum(nodes_complexity)
         function_metrics.boundary_values = self.get_boundary_value_metric(function_metrics.node_graph)
         function_metrics.boundary_values = function_metrics.boundary_values
-        
+
         #CC_modified assumes switch (without default) as 1 edge and 1 node
         if cases_in_switches:
             function_metrics.CC_modified = (len(edges) - ((cases_in_switches - 1)*2)) - (len(boundaries) - (cases_in_switches - 1)) + 2
@@ -661,7 +699,7 @@ class Metrics:
             function_metrics.CC_modified = function_metrics.CC
         #Pivovarsky metric: N(G) = CC_modified + sum(pi) i: 0...n
         function_metrics.Pivovarsky = function_metrics.CC_modified + self.get_boundary_value_metric(function_metrics.node_graph, True)
-        
+
         #Halstead metric. see http://en.wikipedia.org/wiki/Halstead_complexity_measures
         function_metrics.Halstead_basic.N1 = function_metrics.loc_count
         function_metrics.Halstead_basic.n1 = len(mnemonics)
@@ -669,18 +707,19 @@ class Metrics:
         if len(operands) != 0:
             function_metrics.Halstead_basic.N2 = sum(v for v in operands.itervalues())
             function_metrics.Halstead_basic.calculate()
-        
+
         #Span metric
         function_metrics.span_metric = self.get_span_metric(function_metrics.bbls_boundaries, function_metrics.function_ea)
         print hex(function_ea)
         print "size of local vars", idc.GetFunctionAttr(function_ea, FUNCATTR_FRSIZE)
         print "size of saved registers area", idc.GetFunctionAttr(function_ea, FUNCATTR_FRREGS)
         print "argsize", idc.GetFunctionAttr(function_ea, FUNCATTR_ARGSIZE)
-        print "span metric:", function_metrics.span_metric
+
+        # Oviedo metric
+        function_metrics.Oviedo = len(edges) + self.get_oviedo_df(function_metrics.vars_local)
         print "---"
-        
-        return function_metrics        
-        
+        return function_metrics
+
 ''' Usage example '''
 print "Start metrics calculation"
 metrics_total = Metrics()
@@ -700,6 +739,7 @@ print 'Harrison:', metrics_total.Harrison_total
 print 'Boundary value', metrics_total.boundary_values_total
 print "Span metric", metrics_total.span_metric_total
 print "Global var metric", metrics_total.global_vars_metric_total
+print "Oviedo metric", metrics_total.Oviedo_total
 #Save in log file
 f = open('C:\log.txt', 'w')
 f.write('Average lines of code in a function: ' + str(metrics_total.average_loc_count) + "\n")
@@ -714,7 +754,8 @@ f.write('Total Halstead:' + str(metrics_total.Halstead_total.B) + "\n")
 f.write('Total Pivovarsky: ' + str(metrics_total.Pivovarsky_total) + "\n")
 f.write('Total Harrison: ' + str(metrics_total.Harrison_total) + "\n")
 f.write('Total Boundary value: ' + str(metrics_total.boundary_values_total) + "\n")
-f.write('Span metric: ' + str(metrics_total.span_metric_total) + "\n") 
+f.write('Total Span metric: ' + str(metrics_total.span_metric_total) + "\n")
+f.write('Total Oviedo metric: ' + str(metrics_total.Oviedo_total) + "\n")
 
 for function in metrics_total.functions:
     f.write(str(function) + "\n")
@@ -727,7 +768,7 @@ for function in metrics_total.functions:
     f.write('  Cyclomatic complexity modified: ' + str(metrics_total.functions[function].CC_modified) + "\n")
     f.write('  Jilb\'s metric: ' + str(metrics_total.functions[function].CL) + "\n")
     f.write('  ABC: ' + str(metrics_total.functions[function].ABC) + "\n")
-    
+
     f.write('    Halstead.B: ' + str(metrics_total.functions[function].Halstead_basic.B) + "\n")
     f.write('    Halstead.E: ' + str(metrics_total.functions[function].Halstead_basic.E) + "\n")
     f.write('    Halstead.D: ' + str(metrics_total.functions[function].Halstead_basic.D) + "\n")
@@ -737,12 +778,13 @@ for function in metrics_total.functions:
     f.write('    Halstead.N2: ' + str(metrics_total.functions[function].Halstead_basic.N2) + "\n")
     f.write('    Halstead.n1: ' + str(metrics_total.functions[function].Halstead_basic.n1) + "\n")
     f.write('    Halstead.n2: ' + str(metrics_total.functions[function].Halstead_basic.n2) + "\n")
- 
+
     f.write('  Pivovarsky: ' + str(metrics_total.functions[function].Pivovarsky) + "\n")
     f.write('  Harrison: ' + str(metrics_total.functions[function].Harrison) + "\n")
     f.write('  Boundary value: ' + str(metrics_total.functions[function].boundary_values) + "\n")
     f.write('  Span metric: ' + str(metrics_total.functions[function].span_metric) + "\n")
     f.write('  Global vars metric:' + str(metrics_total.functions[function].global_vars_metric) + "\n")
+    f.write('  Oviedo metric: ' + str(metrics_total.functions[function].Oviedo) + "\n")
 f.close()
 
 print "done"
