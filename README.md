@@ -40,6 +40,11 @@ Supported the following metrics:
     
     13. Boundary value metric (function/module)
     
+    14. Span metric (function/module)
+    
+    15. Global variables access count (function/module)
+    
+    
 Additional functionality:
 
      - node graph generation (function)
