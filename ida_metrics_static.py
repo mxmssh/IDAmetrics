@@ -147,7 +147,7 @@ class Metrics_function:
         self.boundary_values = 0.0
         self.span_metric = 0
         self.vars_local = dict()
-        self.vars_params = 0
+        self.vars_args = 0
         self.Oviedo = 0 #todo
         self.Chepin = 0 #todo
         self.global_vars_access = 0
@@ -477,7 +477,7 @@ class Metrics:
                 instr_ops = self.get_instr_operands(int(instr, 16))
                 if op in instr_ops:
                     return True
-                #try to replace ds: and check again
+                #trying to replace ds: and check again
                 op = op.replace("ds:","")
                 comment = GetDisasm(int(instr,16))
                 if comment != None and op in comment:
@@ -520,13 +520,12 @@ class Metrics:
         return span_metric
 
     def is_var_global(self, operand):
-        refs = DataRefsTo(GetOperandValue(0x00401164, 0))
+        refs = DataRefsTo(operand)
         if len(list(refs)) > 1:
             return True
         return False
 
-    def is_var(self, operand):
-        
+    def is_var_local(self, operand):
         
         
         return False
