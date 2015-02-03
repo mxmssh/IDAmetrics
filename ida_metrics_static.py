@@ -73,8 +73,10 @@ ASSIGNMENT_INSTRUCTION = 3
 __EA64__ = idaapi.BADADDR == 0xFFFFFFFFFFFFFFFFL
 
 FUNCATTR_END     =  4     # function end address
+ARGUMENT_SIZE    =  4
 if __EA64__:
     FUNCATTR_END     = 8
+    ARGUMENT_SIZE = 8
 
 # group of assignment instructions ($5.1.1 vol.1 Intel x86 manual):
 assign_instructions_general = ["mov", "cmov", "xchg", "bswap", "xadd", "ad", "sub",
@@ -134,7 +136,7 @@ class Metrics_function:
         self.bbls_boundaries = dict()
         self.condition_count = 0
         self.calls_count = 0
-        self.R = 0.0 # todo e/b
+        self.R = 0.0
         self.node_graph = dict()
         self.CC = 0
         self.CL = 0
@@ -149,7 +151,7 @@ class Metrics_function:
         self.vars_local = dict()
         self.vars_args = dict()
         self.Oviedo = 0
-        self.Chepin = 0 #todo
+        self.Chepin = 0
         self.global_vars_access = 0
         self.global_vars_metric = 0.0
         self.CardnGlass = 0 #todo
@@ -164,6 +166,7 @@ class Metrics:
         self.total_func_count = 0
         self.total_condition_count = 0
         self.total_assign_count = 0
+        self.R_total = 0.0
         self.CC_total = 0
         self.CL_total = 0
         self.ABC_total = 0
@@ -174,7 +177,7 @@ class Metrics:
         self.boundary_values_total = 0.0
         self.span_metric_total = 0
         self.Oviedo_total = 0
-        self.Chepin_total = 0 #todo
+        self.Chepin_total = 0
         self.global_vars_dict = dict()
         self.global_vars_metric_total = 0.0
         self.Cocol_metric = 0 #todo
@@ -198,6 +201,7 @@ class Metrics:
                 self.total_func_count += 1
                 self.total_condition_count += self.functions[function_name].condition_count
                 self.total_assign_count += self.functions[function_name].assign_count
+                self.R_total += self.functions[function_name].R
 
                 self.CC_modified_total += self.functions[function_name].CC_modified
                 self.Pivovarsky_total += self.functions[function_name].Pivovarsky
@@ -214,13 +218,12 @@ class Metrics:
                 self.ABC_total += self.functions[function_name].ABC
 
                 self.span_metric_total += self.functions[function_name].span_metric
-
                 self.Oviedo_total += self.functions[function_name].Oviedo
+                self.Chepin_total += self.functions[function_name].Chepin
 
         self.average_loc_count = self.total_loc_count / self.total_func_count
         self.Halstead_total.calculate()
         self.global_vars_metric_total = self.add_global_vars_metric()
-
 
     def add_global_vars_metric(self):
         total_metric_count = 0
@@ -486,17 +489,67 @@ class Metrics:
                     return True
         return False
 
-    def get_function_params(self, function_ea):
+    def get_function_args_count(self, function_ea, local_vars):
         """
-        The function returns a list of function arguments
+        The function returns count of function arguments
         @function_ea - function entry point
-        @return - function parameters
+        @local_vars - local variables dictionary
+        @return - function arguments count
         """
-        function_params = list()
+        # i#9 Now, we can't identify fastcall functions
 
-        #todo determine function args and return values
+        function_args_count = 0
+        args_dict = dict()
+        for local_var in local_vars:
+            usage_list = local_vars.get(local_var, None)
+            if usage_list == None:
+                print "WARNING: empty usage list for ", local_var
+                continue
+            for head in usage_list:
+                ops = self.get_instr_operands(int(head, 16))
+                for idx, (op,type) in enumerate(ops):
+                    if op.count("+") == 1:
+                        value = GetOperandValue(int (head, 16), idx)
+                        if value < (15 * ARGUMENT_SIZE) and "ebp" in op:
+                            args_dict[local_var] = args_dict.get(local_var, 0) + 1
+                    elif op.count("+") == 2:
+                        if "arg" in local_var:
+                            args_dict[local_var] = args_dict.get(local_var, 0) + 1
+                    else:
+                        continue
 
-        return function_params
+        function_args_count = len(args_dict)
+        if function_args_count:
+            return function_args_count, args_dict
+
+
+        #TODO Check previous algorithm here
+        f_end = idc.FindFuncEnd(function_ea)
+        f_end = PrevHead(f_end, 0)
+        instr_mnem = GetMnem(f_end)
+        #stdcall ?
+        if "ret" in instr_mnem:
+            ops = self.get_instr_operands(f_end)
+            if len(ops) == 1:
+                for op,type in ops:
+                    op = op.replace("h", "")
+                    function_args_count = int(op,16)/ARGUMENT_SIZE
+                    return function_args_count, args_dict
+        #cdecl ?
+        refs = CodeRefsTo(function_ea, 0)
+        for ref in refs:
+            #trying to find add esp,x signature after call
+            head = idc.NextHead(ref, 0xFFFFFFFF)
+            if head:
+                disasm = GetDisasm(head)
+                if "add" in disasm and "esp," in disasm:
+                    ops = self.get_instr_operands(head)
+                    op,type = ops[1]
+                    if op:
+                        op = op.replace("h", "")
+                        function_args_count = int(op,16)/ARGUMENT_SIZE
+                        return function_args_count, args_dict
+        return function_args_count, args_dict
 
     def get_span_metric(self, bbls_dict, function_ea):
         """
@@ -530,6 +583,7 @@ class Metrics:
         # We can only identify stack local variables.
         operand = operand.replace(" ", "")
         name = ""
+
         if operand.count("+") == 1:
             # [base reg+name]
             name = operand[operand.find("+") + 1:operand.find("]")]
@@ -550,6 +604,7 @@ class Metrics:
             usage_list = local_vars.get(local_var, None)
             if usage_list == None:
                 print "WARNING: empty usage list for ", local_var
+                continue
             for instr_addr in usage_list:
                 instr_mnem = idc.GetMnem(int(instr_addr, 16))
                 if instr_mnem.startswith('mov'):
@@ -561,6 +616,27 @@ class Metrics:
                             break
             oviedo_df += len(usage_list)
         return oviedo_df
+
+    def get_chepin(self, local_vars, function_ea):
+        chepin = 0
+        p = 0
+        m = len(local_vars)
+        c = 0
+        (p, args_dict) = self.get_function_args_count(function_ea, local_vars)
+        for local_var in local_vars:
+            usage_list = local_vars.get(local_var, None)
+            if usage_list == None:
+                print "WARNING: empty usage list for ", local_var
+            for instr_addr in usage_list:
+                instr_mnem = idc.GetMnem(int(instr_addr, 16))
+                if instr_mnem.startswith('cmp') or instr_mnem.startswith('test'):
+                    c += 1
+                    m -= 1
+        m = m - len(args_dict) #todo potentially dangerous code
+        if m < 0:
+            print "WARNING m < 0 in Chepin metric", m
+        chepin = p + 2*m + 3*c
+        return chepin
 
     def get_static_metrics(self, function_ea):
         """
@@ -627,7 +703,7 @@ class Metrics:
                             if self.is_var_global(GetOperandValue(head,idx)) and "__" not in op:
                                 self.global_vars_dict[op] = operands.get(op, 0) + 1
                                 function_metrics.global_vars_access += 1
-                        elif type == 3 or type == 4 and idc.GetFunctionAttr(function_ea, FUNCATTR_FRSIZE) != 0:
+                        elif type == 3 or type == 4:
                             name = self.get_local_var_name(op)
                             if name:
                                 function_metrics.vars_local.setdefault(name, []).append(hex(head))
@@ -661,7 +737,6 @@ class Metrics:
                                 else:
                                     edges.add((prev_head, hex(r)))
                             edges.add((hex(head), hex(r)))
-        print function_metrics.vars_local
         # i#7: New algorithm of edges and boundaries constructing is required..
         # Now boundaries and edges are making by using internal IDA functionality
         # but it doesn't work for functions which have jumps beyond function boundaries
@@ -673,6 +748,9 @@ class Metrics:
             function_metrics.bbls_boundaries[bbl[0]] = [x for x in bbl]
         #Cyclomatic complexity CC = E - V + 2
         function_metrics.CC = len(edges) - len(boundaries) + 2
+
+        # R measure
+        function_metrics.R = len(edges)/len(boundaries)
         #Basic blocks count
         function_metrics.bbl_count = len(boundaries)
         #Jilb's metric: cl = CL/n
@@ -710,14 +788,13 @@ class Metrics:
 
         #Span metric
         function_metrics.span_metric = self.get_span_metric(function_metrics.bbls_boundaries, function_metrics.function_ea)
-        print hex(function_ea)
-        print "size of local vars", idc.GetFunctionAttr(function_ea, FUNCATTR_FRSIZE)
-        print "size of saved registers area", idc.GetFunctionAttr(function_ea, FUNCATTR_FRREGS)
-        print "argsize", idc.GetFunctionAttr(function_ea, FUNCATTR_ARGSIZE)
 
-        # Oviedo metric
+        # Oviedo metric C = aCF + bsum(DFi)
         function_metrics.Oviedo = len(edges) + self.get_oviedo_df(function_metrics.vars_local)
-        print "---"
+
+        # Chepin metric Q= P+2M+3C
+        function_metrics.Chepin = + self.get_chepin(function_metrics.vars_local, function_ea)
+
         return function_metrics
 
 ''' Usage example '''
@@ -730,6 +807,7 @@ print 'Total number of functions:', metrics_total.total_func_count
 print 'Total lines of code:', metrics_total.total_loc_count
 print 'Total bbl count:', metrics_total.total_bbl_count
 print 'Total assignments count:', metrics_total.total_assign_count
+print 'Total R count:', metrics_total.R_total
 print 'Total Cyclomatic complexity:', metrics_total.CC_total
 print 'Total Jilb\'s metric:', metrics_total.CL_total
 print 'Total ABC:', metrics_total.ABC_total
@@ -737,9 +815,11 @@ print 'Halstead:', metrics_total.Halstead_total.B
 print 'Pivovarsky:', metrics_total.Pivovarsky_total
 print 'Harrison:', metrics_total.Harrison_total
 print 'Boundary value', metrics_total.boundary_values_total
-print "Span metric", metrics_total.span_metric_total
-print "Global var metric", metrics_total.global_vars_metric_total
-print "Oviedo metric", metrics_total.Oviedo_total
+print 'Span metric', metrics_total.span_metric_total
+print 'Global var metric', metrics_total.global_vars_metric_total
+print 'Oviedo metric', metrics_total.Oviedo_total
+print 'Chepin metric', metrics_total.Chepin_total
+
 #Save in log file
 f = open('C:\log.txt', 'w')
 f.write('Average lines of code in a function: ' + str(metrics_total.average_loc_count) + "\n")
@@ -747,6 +827,7 @@ f.write('Total number of functions: ' + str(metrics_total.total_func_count) + "\
 f.write('Total lines of code: ' + str(metrics_total.total_loc_count) + "\n")
 f.write('Total bbl count: ' + str(metrics_total.total_bbl_count) + "\n")
 f.write('Total assignments count: ' + str(metrics_total.total_assign_count) + "\n")
+f.write('Total R count: ' + str(metrics_total.R_total) + "\n")
 f.write('Total Cyclomatic complexity: ' + str(metrics_total.CC_total) + "\n")
 f.write('Total Jilb\'s metric: ' + str(metrics_total.CL_total) + "\n")
 f.write('Total ABC: ' + str(metrics_total.ABC_total) + "\n")
@@ -756,6 +837,7 @@ f.write('Total Harrison: ' + str(metrics_total.Harrison_total) + "\n")
 f.write('Total Boundary value: ' + str(metrics_total.boundary_values_total) + "\n")
 f.write('Total Span metric: ' + str(metrics_total.span_metric_total) + "\n")
 f.write('Total Oviedo metric: ' + str(metrics_total.Oviedo_total) + "\n")
+f.write('Total Chepin metric: ' + str(metrics_total.Chepin_total) + "\n")
 
 for function in metrics_total.functions:
     f.write(str(function) + "\n")
@@ -768,6 +850,7 @@ for function in metrics_total.functions:
     f.write('  Cyclomatic complexity modified: ' + str(metrics_total.functions[function].CC_modified) + "\n")
     f.write('  Jilb\'s metric: ' + str(metrics_total.functions[function].CL) + "\n")
     f.write('  ABC: ' + str(metrics_total.functions[function].ABC) + "\n")
+    f.write('  R count: ' + str(metrics_total.functions[function].R) + "\n")
 
     f.write('    Halstead.B: ' + str(metrics_total.functions[function].Halstead_basic.B) + "\n")
     f.write('    Halstead.E: ' + str(metrics_total.functions[function].Halstead_basic.E) + "\n")
@@ -785,6 +868,7 @@ for function in metrics_total.functions:
     f.write('  Span metric: ' + str(metrics_total.functions[function].span_metric) + "\n")
     f.write('  Global vars metric:' + str(metrics_total.functions[function].global_vars_metric) + "\n")
     f.write('  Oviedo metric: ' + str(metrics_total.functions[function].Oviedo) + "\n")
+    f.write('  Chepin metric: ' + str(metrics_total.functions[function].Chepin) + "\n")
 f.close()
 
 print "done"
