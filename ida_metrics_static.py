@@ -39,16 +39,16 @@ Python 2.5
 IDAPython 1.2.0
 
 Supported the following metrics:
-    1. Lines of code (function/module)  
-    2. Average lines of code per basic block (module)   
-    3. Basic blocks count (function/module)   
-    4. Functions count (module)  
-    5. Conditions count (function/module)  
-    6. Assignments count (function/module)  
-    7. Cyclomatic complexity metric (function/module)  
-    8. Jilb's metric (function/module) 
-    9. ABC metric (function/module) 
-    10. Pivovarsky metric (function/module) 
+    1. Lines of code (function/module)
+    2. Average lines of code per basic block (module)
+    3. Basic blocks count (function/module)
+    4. Functions count (module)
+    5. Conditions count (function/module)
+    6. Assignments count (function/module)
+    7. Cyclomatic complexity metric (function/module)
+    8. Jilb's metric (function/module)
+    9. ABC metric (function/module)
+    10. Pivovarsky metric (function/module)
     11. Halstead metric (function/module)
     12. Harrison metric (function/module)
     13. Boundary value metric (function/module)
@@ -603,7 +603,11 @@ class Metrics:
                         span_metric += 1
         return span_metric
 
-    def is_var_global(self, operand):
+    def is_var_global(self, operand, head):
+        if operand == -1:
+            print "WARNING: unknown global var operand at ", hex(head)
+            return False
+
         refs = DataRefsTo(operand)
         if len(list(refs)) > 1:
             return True
@@ -703,7 +707,6 @@ class Metrics:
         refs_to = CodeRefsTo(function_ea, 0)
         function_metrics.fan_in_s = sum(1 for y in refs_to)
 
-
         # check input args
         (read, write) = self.get_unique_vars_read_write_count(function_metrics.vars_args)
         function_metrics.fan_in_i += read
@@ -791,7 +794,7 @@ class Metrics:
                     for idx, (op,type) in enumerate(ops):
                         operands[op] = operands.get(op, 0) + 1
                         if type == 2:
-                            if self.is_var_global(GetOperandValue(head,idx)) and "__" not in op:
+                            if self.is_var_global(GetOperandValue(head,idx), head) and "__" not in op:
                                 self.global_vars_dict[op] = operands.get(op, 0) + 1
                                 function_metrics.global_vars_used.setdefault(op, []).append(hex(head))
                                 function_metrics.global_vars_access += 1
@@ -860,7 +863,6 @@ class Metrics:
 
         #boundary values metric: Sa = sum(nodes_complexity)
         function_metrics.boundary_values = self.get_boundary_value_metric(function_metrics.node_graph)
-        function_metrics.boundary_values = function_metrics.boundary_values
 
         #CC_modified assumes switch (without default) as 1 edge and 1 node
         if cases_in_switches:
@@ -889,7 +891,6 @@ class Metrics:
 
         # Henry and Cafura metric
         function_metrics.HenrynCafura = self.get_henryncafura_metric(function_ea, function_metrics)
-
 
         # Card and Glass metric C = S + D
         function_metrics.CardnGlass = pow((function_metrics.fan_out_i + function_metrics.fan_out_s), 2) +\
