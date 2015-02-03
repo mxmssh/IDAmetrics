@@ -43,7 +43,16 @@ Supported the following metrics:
     14. Span metric (function/module)
     
     15. Global variables access count (function/module)
-    
+
+    16. Oviedo metric (function/module)
+
+    17. Chepin metric (function/module)
+
+    18. Card & Glass metric (function/module)
+
+    19. Henry & Cafura metric (function/module)
+
+    20. Cocol metric (function/module)
     
 Additional functionality:
 
