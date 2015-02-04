@@ -60,3 +60,9 @@ Additional functionality:
      
      - basic block boundaries generation (function)
      
+BUGS
+
+Please read attentively current issues before using these scripts. Many metrics
+were not originally created for binary code, so I made a lot of assumptions 
+during implementation and you should use results of these scripts very carefully.
+Please mail me if you find any inaccuracy or mistakes in the implementation.
