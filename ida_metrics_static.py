@@ -806,18 +806,23 @@ class Metrics:
                         cases_in_switches += case_count
                     mnemonics[mnem] = mnemonics.get(mnem, 0) + 1
 
-                    ops = self.get_instr_operands(head)
-                    for idx, (op,type) in enumerate(ops):
-                        operands[op] = operands.get(op, 0) + 1
-                        if type == 2:
-                            if self.is_var_global(GetOperandValue(head,idx), head) and "__" not in op:
-                                self.global_vars_dict[op] = operands.get(op, 0) + 1
-                                function_metrics.global_vars_used.setdefault(op, []).append(hex(head))
-                                function_metrics.global_vars_access += 1
-                        elif type == 3 or type == 4:
-                            name = self.get_local_var_name(op)
-                            if name:
-                                function_metrics.vars_local.setdefault(name, []).append(hex(head))
+                    if instruction_type != BRANCH_INSTRUCTION and instruction_type != CALL_INSTRUCTION:
+                        ops = self.get_instr_operands(head)
+                        for idx, (op,type) in enumerate(ops):
+                            operands[op] = operands.get(op, 0) + 1
+                            if type == 2:
+                                if self.is_var_global(GetOperandValue(head,idx), head) and "__" not in op:
+                                    self.global_vars_dict[op] = operands.get(op, 0) + 1
+                                    function_metrics.global_vars_used.setdefault(op, []).append(hex(head))
+                                    function_metrics.global_vars_access += 1
+                                elif "__" not in op:
+                                    # static variable
+                                    name = op
+                                    function_metrics.vars_local.setdefault(name, []).append(hex(head))
+                            elif type == 3 or type == 4:
+                                name = self.get_local_var_name(op)
+                                if name:
+                                    function_metrics.vars_local.setdefault(name, []).append(hex(head))
 
                     if refs:
                         # If the flow continues also to the next (address-wise)
