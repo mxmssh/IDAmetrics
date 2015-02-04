@@ -141,6 +141,7 @@ class Halstead_metric:
         self.D = 0
         self.E = 0
         self.B = 0
+
     def calculate(self):
         n = self.n1+self.n2
         N = self.N1+self.N2
@@ -188,6 +189,7 @@ class Metrics_function:
         self.fan_out_s = 0
         self.HenrynCafura = 0
         self.Cocol = 0
+
 class Metrics:
     def __init__(self):
         self.total_loc_count = 0
@@ -266,11 +268,17 @@ class Metrics:
         self.Cocol_total += self.Halstead_total.B + self.CC_total + self.total_loc_count
 
     def add_global_vars_metric(self):
+        '''
+        The function calculates access count to global variables.
+        @return - total access count
+        '''
+
         total_metric_count = 0
         for function in self.functions:
             self.functions[function].global_vars_metric = float(self.functions[function].global_vars_access)/len(self.global_vars_dict)
             total_metric_count += self.functions[function].global_vars_metric
         return total_metric_count
+
     def get_bbl_head(self, head):
         """
         The function returns address of the head instruction
@@ -295,9 +303,9 @@ class Metrics:
 
     def enumerate_function_chunks(self, f_start):
         """
-        The function gets list of the chunks for the function.
-        @f_start - first address of the function with chunks
-        @return - list of the chunks
+        The function gets a list of chunks for the function.
+        @f_start - first address of the function
+        @return - list of chunks
         """
         # Enumerate all chunks in the function
         chunks = list()
@@ -450,7 +458,7 @@ class Metrics:
             node_edges_to = edges_dict[edge_from]
             if node_edges_to == None:
                 raise Exception("Error when creating node graph")
-            # check for additional chunks (xref i#8)
+            # check for additional chunks (xref i#6)
             if edge_from not in boundaries_list:
                 bbl_edge_from = bbls_dict.get(edge_from, None)
                 if bbl_edge_from == None:
@@ -516,6 +524,13 @@ class Metrics:
         return instr_op
 
     def is_operand_called(self, op, bbl):
+        '''
+        The function checks whether operand used for call instruction in the
+        following instructions or not.
+        @op - operand
+        @bbl - list of instructions in bbl
+        @return - True if used
+        '''
         for instr in bbl:
             instr_type = GetInstructionType(int(instr,16))
             if instr_type == CALL_INSTRUCTION or\
@@ -612,7 +627,10 @@ class Metrics:
         return span_metric
 
     def is_var_global(self, operand, head):
-
+        '''
+        The function checks whether operand global or not.
+        @return - True if global
+        '''
         if operand == -1:
             return False
         refs = DataRefsTo(operand)
@@ -621,6 +639,12 @@ class Metrics:
         return False
 
     def get_local_var_name(self, operand, head):
+        '''
+        The function returns variable name which is used in operand
+        @operand - operand string representation
+        @head - instruction head for debugging
+        @return - variable name
+        '''
         # i#8 Now we can't identify variables which is handled by registers.
         # We can only identify stack local variables.
         operand = operand.replace(" ", "")
@@ -655,6 +679,11 @@ class Metrics:
         return name
 
     def get_oviedo_df(self, local_vars):
+        '''
+        The function calculates Oviedo's DF value
+        @local_vars - a dictionary of local variables for function
+        @return - Oviedo's DF value
+        '''
         oviedo_df = 0
         # get local variables usage count, except initialization, such as:
         # mov [ebp+var_0], some_value
@@ -676,6 +705,13 @@ class Metrics:
         return oviedo_df
 
     def get_chepin(self, local_vars, function_ea, function_metrics):
+        '''
+        The function calculates Chepin metric
+        @local_vars - a dictionary of local variables
+        @function_ea - function entry address
+        @function_metrics - function metrics structure
+        @return - Chepin value
+        '''
         chepin = 0
         p = 0
         m = 0
@@ -706,6 +742,12 @@ class Metrics:
         return chepin
 
     def get_unique_vars_read_write_count(self, vars_dict):
+        '''
+        The function performs evaluation of read/write count for each
+        variable in dictionary.
+        @vars_dict - a dictionary of variable to get count
+        @return - two dictionaries of read and write for each variable
+        '''
         tmp_dict_read = dict()
         tmp_dict_write = dict()
         for arg_var in vars_dict:
@@ -733,7 +775,12 @@ class Metrics:
         return len(tmp_dict_read), len(tmp_dict_write)
 
     def get_henryncafura_metric(self, function_ea, function_metrics):
-
+        '''
+        The function performs evaluation of Henry&Cafura metric
+        @function_ea - function entry address
+        @function_metrics - function_metrics structure
+        @return - Henry&Cafura metric
+        '''
         function_metrics.fan_out_s = len(function_metrics.calls_dict)
         refs_to = CodeRefsTo(function_ea, 0)
         function_metrics.fan_in_s = sum(1 for y in refs_to)
@@ -759,7 +806,6 @@ class Metrics:
         @function_ea - function address
         @return - function metrics structure
         """
-
         f_start = function_ea
         f_end = idc.FindFuncEnd(function_ea)
         function_metrics = Metrics_function(function_ea)
@@ -934,6 +980,7 @@ class Metrics:
         function_metrics.CardnGlass = pow((function_metrics.fan_out_i + function_metrics.fan_out_s), 2) +\
                               (len(function_metrics.vars_args))/(function_metrics.fan_out_i + function_metrics.fan_out_s + 1)
         return function_metrics
+
 ''' Usage example '''
 print "Start metrics calculation"
 metrics_total = Metrics()

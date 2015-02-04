@@ -1,4 +1,6 @@
 '''
+ida_metrics_dynamic plugin ver 0.1
+
 Copyright (c) 2015, Maksim Shudrak (mxmssh@gmail.com)
 All rights reserved.
 
@@ -27,6 +29,18 @@ of the authors and should not be interpreted as representing official policies,
 either expressed or implied, of the FreeBSD Project.
 '''
 
+''' 
+IDA plugin for dynamic metrics collection.
+Supported:
+    1. Code coverage evaluation
+    2. Lines of code executed
+    3. BBLs executed
+    4. Calls executed
+
+    TODO: Script usage description
+
+'''
+
 import idc
 import idaapi
 import idautils
@@ -53,7 +67,7 @@ class Metrics_dynamic:
         self.functions_executed_total = 0
         self.calls_executed_total = 0
         self.functions = dict()
-
+        # i#12 Add Henry&Cafura evaluation after code execution
 
     def get_basic_dynamic_metrics(self, c, metrics_static):
         
@@ -73,7 +87,7 @@ class Metrics_dynamic:
         for instr in instr_executed:
             function_name = idc.GetFunctionName(instr)
             if function_name == "":
-                # i#9 We need special algorithm instead of FunctionName in "red"
+                # i#11 We need special algorithm instead of GetFunctionName in "red"
                 # zones.
                 print "Unknown"
                 raise Exception ("Unknown function name")
@@ -116,7 +130,7 @@ class Metrics_dynamic:
         query = 'select i.prev_address, i.cur_address from trace i'
         c.execute(query)
 
-        # i#8 ida_metrics_static script needs refactoring b/c we don't need to
+        # i#10 ida_metrics_static script needs refactoring b/c we don't need to
         # collect all metrics here.
         metrics_static = Metrics()
         metrics_static.start_analysis()
