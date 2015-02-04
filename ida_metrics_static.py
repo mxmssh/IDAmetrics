@@ -144,7 +144,10 @@ class Halstead_metric:
     def calculate(self):
         n = self.n1+self.n2
         N = self.N1+self.N2
-        self.Ni = self.n1 * math.log(self.n1, 2) + self.n2 * math.log(self.n2, 2)
+        try:
+            self.Ni = self.n1 * math.log(self.n1, 2) + self.n2 * math.log(self.n2, 2)
+        except:
+            print "WARNING: Ni value for Halstead metric is too large to calculate"
         self.V = N * math.log(n, 2)
         self.D = (self.n1/2)*(self.N2/self.n2)
         self.E = self.D * self.V
@@ -152,7 +155,7 @@ class Halstead_metric:
 
 class Metrics_function:
     def __init__(self, function_ea):
-        self.function_ea = function_ea
+        self.function_name = idc.GetFunctionName(function_ea)
         self.loc_count = 0
         self.bbl_count = 0
         self.bbls_boundaries = dict()
@@ -218,10 +221,14 @@ class Metrics:
         @return - None
         """
         # For each of the segments
+        function_list = list()
         for seg_ea in idautils.Segments():
             # For each of the functions
-            for function_ea in idautils.Functions(seg_ea, idc.SegEnd(seg_ea)):
+            functions = idautils.Functions(seg_ea, idc.SegEnd(seg_ea))
+            functions_list = list(functions)
+            for function_ea in functions_list:
                 function_name = idc.GetFunctionName(function_ea)
+
                 self.functions[function_name] = self.get_static_metrics(function_ea)
                 self.total_loc_count += self.functions[function_name].loc_count
                 self.total_bbl_count += self.functions[function_name].bbl_count
@@ -252,7 +259,8 @@ class Metrics:
 
                 self.functions[function_name].Cocol = self.functions[function_name].Halstead_basic.B + self.functions[function_name].CC + self.functions[function_name].loc_count
 
-        self.average_loc_count = self.total_loc_count / self.total_func_count
+        if self.total_func_count > 0:
+            self.average_loc_count = self.total_loc_count / self.total_func_count
         self.Halstead_total.calculate()
         self.global_vars_metric_total = self.add_global_vars_metric()
         self.Cocol_total += self.Halstead_total.B + self.CC_total + self.total_loc_count
@@ -582,11 +590,10 @@ class Metrics:
                         return function_args_count, args_dict
         return function_args_count, args_dict
 
-    def get_span_metric(self, bbls_dict, function_ea):
+    def get_span_metric(self, bbls_dict):
         """
         The function calculates span metric.
         @bbls_dict - basic blocks dictionary
-        @function_ea - function entry point
         @return - span metric
         """
         span_metric = 0
@@ -594,12 +601,12 @@ class Metrics:
             for head in bbl:
                 instr_op = self.get_instr_operands(int(head, 16))
                 instr_type = GetInstructionType(int(head, 16))
-                if  instr_type == CALL_INSTRUCTION or instr_type == BRANCH_INSTRUCTION:
+                if instr_type == CALL_INSTRUCTION or instr_type == BRANCH_INSTRUCTION:
                     continue
                 for op,type in instr_op:
                     if self.is_operand_called(op, bbl):
                         continue
-                    if type >= idc.o_mem and type <= o_displ:
+                    if type >= idc.o_mem and type <= idc.o_displ:
                         span_metric += 1
         return span_metric
 
@@ -623,10 +630,19 @@ class Metrics:
             # [base reg+name]
             name = operand[operand.find("+") + 1:operand.find("]")]
         elif operand.count("+") == 2:
+            # [base reg + reg + name]
             name = operand[operand.rfind("+") + 1:operand.find("]")]
         elif operand.count("+") > 2:
-            print "WARNING: unknown operand mask ", operand
-            name = None
+            #try to find var_XX mask
+            if "var_" in operand:
+                # [reg1+x*reg2+var_XX+value] or [reg1+x*reg2+value+var_XX]
+                if operand.find("var_") > operand.rfind("+"):
+                    operand = operand[operand.find("var_"):operand.find("]")]
+                else:
+                    operand = operand[operand.find("var_"):operand.rfind("+")]
+            else:
+                print "WARNING: unknown operand mask ", operand
+                name = None
         else:
             name = None
         return name
@@ -782,7 +798,7 @@ class Metrics:
                     # Get the mnemonic and increment the mnemonic count
                     mnem = idc.GetMnem(head)
                     comment = idc.GetCommentEx(head, 0)
-                    if comment != None and 'switch' in comment and 'jump' not in comment:
+                    if comment != None and comment.startswith('switch') and 'jump' not in comment:
                         case_count = comment[7:]
                         space_index = case_count.find(" ")
                         case_count = case_count[:space_index]
@@ -881,7 +897,7 @@ class Metrics:
             function_metrics.Halstead_basic.calculate()
 
         #Span metric
-        function_metrics.span_metric = self.get_span_metric(function_metrics.bbls_boundaries, function_metrics.function_ea)
+        function_metrics.span_metric = self.get_span_metric(function_metrics.bbls_boundaries)
 
         # Oviedo metric C = aCF + bsum(DFi)
         function_metrics.Oviedo = len(edges) + self.get_oviedo_df(function_metrics.vars_local)
