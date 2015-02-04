@@ -385,6 +385,7 @@ class Metrics:
                 bbls_node = bbls_dict.get(child_node, None)
                 if bbls_node == None:
                     print "WARNING: couldn't find bbl for child node: ", child_node
+                    loc_measure += 0
                 else:
                     loc_measure += len(bbls_node)
                     loc_measure += self.get_node_complexity(child_node, node_graph, bbls_dict, nodes_passed)
@@ -611,16 +612,15 @@ class Metrics:
         return span_metric
 
     def is_var_global(self, operand, head):
-        if operand == -1:
-            print "WARNING: unknown global var operand at ", hex(head)
-            return False
 
+        if operand == -1:
+            return False
         refs = DataRefsTo(operand)
         if len(list(refs)) > 1:
             return True
         return False
 
-    def get_local_var_name(self, operand):
+    def get_local_var_name(self, operand, head):
         # i#8 Now we can't identify variables which is handled by registers.
         # We can only identify stack local variables.
         operand = operand.replace(" ", "")
@@ -635,13 +635,20 @@ class Metrics:
         elif operand.count("+") > 2:
             #try to find var_XX mask
             if "var_" in operand:
-                # [reg1+x*reg2+var_XX+value] or [reg1+x*reg2+value+var_XX]
+                # [reg1+x*reg2+arg_XX+value] or [reg1+x*reg2+value+arg_XX]
                 if operand.find("var_") > operand.rfind("+"):
                     operand = operand[operand.find("var_"):operand.find("]")]
                 else:
                     operand = operand[operand.find("var_"):operand.rfind("+")]
+            #try to find arg_XX mask
+            elif "arg_" in operand:
+                # [reg1+x*reg2+arg_XX+value] or [reg1+x*reg2+value+arg_XX]
+                if operand.find("var_") > operand.rfind("+"):
+                    operand = operand[operand.find("arg_"):operand.find("]")]
+                else:
+                    operand = operand[operand.find("arg_"):operand.rfind("+")]
             else:
-                print "WARNING: unknown operand mask ", operand
+                print "WARNING: unknown operand mask ", operand, hex(head)
                 name = None
         else:
             name = None
@@ -671,9 +678,11 @@ class Metrics:
     def get_chepin(self, local_vars, function_ea, function_metrics):
         chepin = 0
         p = 0
-        m = len(local_vars)
+        m = 0
         c = 0
-        (p, function_metrics.vars_args) = self.get_function_args_count(function_ea, local_vars)
+        tmp_dict = dict()
+        var_args_tmp = dict()
+        (p, var_args_tmp) = self.get_function_args_count(function_ea, local_vars)
         for local_var in local_vars:
             usage_list = local_vars.get(local_var, None)
             if usage_list == None:
@@ -682,11 +691,17 @@ class Metrics:
             for instr_addr in usage_list:
                 instr_mnem = idc.GetMnem(int(instr_addr, 16))
                 if instr_mnem.startswith('cmp') or instr_mnem.startswith('test'):
-                    c += 1
-                    m -= 1
-        m = m - len(function_metrics.vars_args) #todo potentially dangerous code
-        if m < 0:
-            print "WARNING m < 0 in Chepin metric", m
+                    tmp_dict.setdefault(local_var, []).append(instr_addr)
+
+        for var_arg in var_args_tmp:
+            if var_arg in local_vars:
+                del local_vars[var_arg]
+        for cmp_var in tmp_dict:
+            if cmp_var in local_vars:
+                del local_vars[cmp_var]
+
+        c = len(tmp_dict)
+        m = len(local_vars)
         chepin = p + 2*m + 3*c
         return chepin
 
@@ -722,6 +737,8 @@ class Metrics:
         function_metrics.fan_out_s = len(function_metrics.calls_dict)
         refs_to = CodeRefsTo(function_ea, 0)
         function_metrics.fan_in_s = sum(1 for y in refs_to)
+
+        (count, function_metrics.vars_args) = self.get_function_args_count(function_ea, function_metrics.vars_local)
 
         # check input args
         (read, write) = self.get_unique_vars_read_write_count(function_metrics.vars_args)
@@ -771,7 +788,7 @@ class Metrics:
                             print "Invalid reference for head", head
                             raise Exception("Invalid reference for head")
                         for chunk_filter in chunks:
-                            if ref >= chunk_filter[0] and ref <= chunk_filter[1]:
+                            if ref >= chunk_filter[0] and ref < chunk_filter[1]:
                                 refs_filtered.add(ref)
                                 break
                     refs = refs_filtered
@@ -820,7 +837,7 @@ class Metrics:
                                     name = op
                                     function_metrics.vars_local.setdefault(name, []).append(hex(head))
                             elif type == 3 or type == 4:
-                                name = self.get_local_var_name(op)
+                                name = self.get_local_var_name(op, head)
                                 if name:
                                     function_metrics.vars_local.setdefault(name, []).append(hex(head))
 
