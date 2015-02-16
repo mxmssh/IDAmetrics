@@ -68,6 +68,8 @@ import idc
 import idaapi
 import idautils
 import math
+import gc
+from time import strftime
 from collections import defaultdict
 from sets import Set
 from idaapi import *
@@ -275,7 +277,8 @@ class Metrics:
 
         total_metric_count = 0
         for function in self.functions:
-            self.functions[function].global_vars_metric = float(self.functions[function].global_vars_access)/len(self.global_vars_dict)
+            if len(self.global_vars_dict):
+                self.functions[function].global_vars_metric = float(self.functions[function].global_vars_access)/len(self.global_vars_dict)
             total_metric_count += self.functions[function].global_vars_metric
         return total_metric_count
 
@@ -552,7 +555,7 @@ class Metrics:
         @local_vars - local variables dictionary
         @return - function arguments count
         """
-        # i#9 Now, we can't identify fastcall functions
+        # i#9 Now, we can't identify fastcall functions.
 
         function_args_count = 0
         args_dict = dict()
@@ -979,10 +982,25 @@ class Metrics:
         # Card and Glass metric C = S + D
         function_metrics.CardnGlass = pow((function_metrics.fan_out_i + function_metrics.fan_out_s), 2) +\
                               (len(function_metrics.vars_args))/(function_metrics.fan_out_i + function_metrics.fan_out_s + 1)
+        #free memory
+        function_metrics.bbls_boundaries.clear()
+        function_metrics.node_graph.clear()
+        function_metrics.vars_local.clear()
+        function_metrics.vars_args.clear()
+        function_metrics.global_vars_used.clear()
+        function_metrics.calls_dict.clear()
+        mnemonics.clear()
+        operands.clear()
+        edges.clear()
+        boundaries.clear()
+        gc.collect()
         return function_metrics
 
 ''' Usage example '''
 print "Start metrics calculation"
+
+idc.Wait()
+
 metrics_total = Metrics()
 metrics_total.start_analysis()
 
@@ -1007,7 +1025,13 @@ print 'Henry&Cafura metric', metrics_total.HenrynCafura_total
 print 'Cocol metric', metrics_total.Cocol_total
 print 'Card&Glass metric', metrics_total.CardnGlass_total
 #Save in log file
-f = open('C:\log.txt', 'w')
+
+
+current_time = strftime("%Y-%m-%d_%H-%M-%S")
+analyzed_file = GetInputFile()
+analyzed_file = analyzed_file.replace(".","_")
+name = "C:/results/" + analyzed_file + "_" + current_time + ".txt"
+f = open(name, 'w')
 f.write('Average lines of code in a function: ' + str(metrics_total.average_loc_count) + "\n")
 f.write('Total number of functions: ' + str(metrics_total.total_func_count) + "\n")
 f.write('Total lines of code: ' + str(metrics_total.total_loc_count) + "\n")
@@ -1062,5 +1086,6 @@ for function in metrics_total.functions:
     f.write('  CardnGlass metric: ' + str(metrics_total.functions[function].CardnGlass) + "\n")
     f.write('  Henry&Cafura metric: ' + str(metrics_total.functions[function].HenrynCafura) + "\n")
 f.close()
-
 print "done"
+if os.getenv('IDAPYTHON') == 'auto':
+    Exit(0)
