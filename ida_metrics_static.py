@@ -161,11 +161,9 @@ class Metrics_function:
         self.function_name = idc.GetFunctionName(function_ea)
         self.loc_count = 0
         self.bbl_count = 0
-        self.bbls_boundaries = dict()
         self.condition_count = 0
         self.calls_count = 0
         self.R = 0.0
-        self.node_graph = dict()
         self.CC = 0
         self.CL = 0
         self.assign_count = 0
@@ -232,8 +230,12 @@ class Metrics:
             functions_list = list(functions)
             for function_ea in functions_list:
                 function_name = idc.GetFunctionName(function_ea)
-
-                self.functions[function_name] = self.get_static_metrics(function_ea)
+                try:
+                    self.functions[function_name] = self.get_static_metrics(function_ea)
+                except:
+                    print 'Can\'t collect metric for this function ', function_name
+                    print 'Skip'
+                    continue
                 self.total_loc_count += self.functions[function_name].loc_count
                 self.total_bbl_count += self.functions[function_name].bbl_count
                 self.total_func_count += 1
@@ -817,6 +819,7 @@ class Metrics:
         boundaries = Set((f_start,))
         mnemonics = dict()
         operands = dict()
+        bbls_boundaries = dict()
         cases_in_switches = 0
 
         chunks = self.enumerate_function_chunks(f_start)
@@ -927,7 +930,7 @@ class Metrics:
         bbls = self.get_bbls(chunks, boundaries, edges)
         # save bbls boundaries in dict
         for bbl in bbls:
-            function_metrics.bbls_boundaries[bbl[0]] = [x for x in bbl]
+            bbls_boundaries[bbl[0]] = [x for x in bbl]
         #Cyclomatic complexity CC = E - V + 2
         function_metrics.CC = len(edges) - len(boundaries) + 2
 
@@ -943,13 +946,13 @@ class Metrics:
                                pow(function_metrics.calls_count, 2)
         function_metrics.ABC = math.sqrt(function_metrics.ABC)
         # Create node graph
-        function_metrics.node_graph = self.make_graph(edges, bbls, boundaries)
+        node_graph = self.make_graph(edges, bbls, boundaries)
 
         #Harrison metric: f = sum(ci) i: 0...n
-        function_metrics.Harrison = self.get_harrison_metric(function_metrics.node_graph, bbls)
+        function_metrics.Harrison = self.get_harrison_metric(node_graph, bbls)
 
         #boundary values metric: Sa = sum(nodes_complexity)
-        function_metrics.boundary_values = self.get_boundary_value_metric(function_metrics.node_graph)
+        function_metrics.boundary_values = self.get_boundary_value_metric(node_graph)
 
         #CC_modified assumes switch (without default) as 1 edge and 1 node
         if cases_in_switches:
@@ -957,7 +960,7 @@ class Metrics:
         else:
             function_metrics.CC_modified = function_metrics.CC
         #Pivovarsky metric: N(G) = CC_modified + sum(pi) i: 0...n
-        function_metrics.Pivovarsky = function_metrics.CC_modified + self.get_boundary_value_metric(function_metrics.node_graph, True)
+        function_metrics.Pivovarsky = function_metrics.CC_modified + self.get_boundary_value_metric(node_graph, True)
 
         #Halstead metric. see http://en.wikipedia.org/wiki/Halstead_complexity_measures
         function_metrics.Halstead_basic.N1 = function_metrics.loc_count
@@ -968,7 +971,7 @@ class Metrics:
             function_metrics.Halstead_basic.calculate()
 
         #Span metric
-        function_metrics.span_metric = self.get_span_metric(function_metrics.bbls_boundaries)
+        function_metrics.span_metric = self.get_span_metric(bbls_boundaries)
 
         # Oviedo metric C = aCF + bsum(DFi)
         function_metrics.Oviedo = len(edges) + self.get_oviedo_df(function_metrics.vars_local)
@@ -983,8 +986,8 @@ class Metrics:
         function_metrics.CardnGlass = pow((function_metrics.fan_out_i + function_metrics.fan_out_s), 2) +\
                               (len(function_metrics.vars_args))/(function_metrics.fan_out_i + function_metrics.fan_out_s + 1)
         #free memory
-        function_metrics.bbls_boundaries.clear()
-        function_metrics.node_graph.clear()
+        bbls_boundaries.clear()
+        node_graph.clear()
         function_metrics.vars_local.clear()
         function_metrics.vars_args.clear()
         function_metrics.global_vars_used.clear()
