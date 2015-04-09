@@ -1,8 +1,8 @@
-# ida-metrics_static
-IDA plugin for software complexity metrics collection.
+# IDAMetrics-static.py
+IDA plugins for software complexity metrics collection.
 
-This IDA script collects static software complexity metrics for binary executable
-of x86 architecture.
+This IDA scripts collects static software complexity metrics 
+for binary executable of x86 architecture.
 
 Minimal requirements:
 
@@ -59,7 +59,18 @@ Additional functionality:
      - node graph generation (function)
      
      - basic block boundaries generation (function)
-     
+
+# IDAMetrics-dynamic.py
+
+IDA plugins for trace complexity assessment.
+
+This IDA scripts allows to collect complexity only for 
+for trace of executed application.
+
+# pincc.cpp
+
+Intel PIN DBI tool that allows to get trace of executed basic blocks.
+
 BUGS
 
 Please read attentively current issues before using these scripts. Many metrics
