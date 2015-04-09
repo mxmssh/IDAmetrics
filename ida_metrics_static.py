@@ -223,18 +223,22 @@ class Metrics:
         @return - None
         """
         # For each of the segments
-        function_list = list()
         for seg_ea in idautils.Segments():
             # For each of the functions
-            functions = idautils.Functions(seg_ea, idc.SegEnd(seg_ea))
-            functions_list = list(functions)
-            for function_ea in functions_list:
+            function_ea = seg_ea
+            while function_ea != 0xffffffffL:
                 function_name = idc.GetFunctionName(function_ea)
+                # if already analyzed
+                if self.functions.get(function_name, None) != None:
+                    function_ea = NextFunction(function_ea)
+                    continue
+                print hex(function_ea)
                 try:
                     self.functions[function_name] = self.get_static_metrics(function_ea)
                 except:
-                    print 'Can\'t collect metric for this function ', function_name
+                    print 'Can\'t collect metric for this function ', hex(function_ea)
                     print 'Skip'
+                    function_ea = NextFunction(function_ea)
                     continue
                 self.total_loc_count += self.functions[function_name].loc_count
                 self.total_bbl_count += self.functions[function_name].bbl_count
@@ -264,6 +268,8 @@ class Metrics:
                 self.CardnGlass_total += self.functions[function_name].CardnGlass
 
                 self.functions[function_name].Cocol = self.functions[function_name].Halstead_basic.B + self.functions[function_name].CC + self.functions[function_name].loc_count
+                
+                function_ea = NextFunction(function_ea)
 
         if self.total_func_count > 0:
             self.average_loc_count = self.total_loc_count / self.total_func_count
