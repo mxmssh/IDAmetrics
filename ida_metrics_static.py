@@ -112,7 +112,7 @@ def GetInstructionType(instr_addr):
     if instr_mnem.startswith('call'):
         return CALL_INSTRUCTION
     elif instr_mnem.startswith('j'):
-        # It seems that there is no other type of instruction
+        # It seems that there is no other type of instructions
         # starting with j in x86/x86_64
         return BRANCH_INSTRUCTION
     for assign_instr_mnem in assign_instructions_general:
@@ -1002,7 +1002,7 @@ class Metrics:
 ''' Usage example '''
 print "Start metrics calculation"
 
-idc.Wait()
+idc.Wait() #wait while ida finish analysis
 
 metrics_total = Metrics()
 metrics_total.start_analysis()
