@@ -47,7 +47,10 @@ import idautils
 import sqlite3
 from sets import Set
 from idaapi import *
-from ida_metrics_static import GetInstructionType
+from IDAMetrics_static import *
+from Tkinter import *
+import tkMessageBox
+import Tkinter
 
 class Metrics_function_dynamic:
     def __init__(self, function_ea):
@@ -60,43 +63,42 @@ class Metrics_function_dynamic:
 
 class Metrics_dynamic:
     def __init__(self):
-        self.image_base = 0
+        self.image_base = idaapi.get_imagebase();
         self.code_coverage_total = 0.0
         self.loc_executed_total = 0
         self.bbls_executed_total = 0
         self.functions_executed_total = 0
         self.calls_executed_total = 0
         self.functions = dict()
-        # i#12 Add Henry&Cafura evaluation after code execution
 
-    def get_basic_dynamic_metrics(self, c, metrics_static):
+    def get_basic_dynamic_metrics(self, trace, metrics_static):
         
         instr_executed = list()
         instr_executed_dict = dict()
-        for r in c:
-            if r[0] == 0:
-                self.loc_executed_total += 1
-                continue
+        for instr_addr in trace:
+            instr_addr = int(instr_addr, 0) + self.image_base
             # set color for traced instructions
-            idc.SetColor(r[0] + self.image_base, idc.CIC_ITEM, 0xB8FF94)
-            instr_executed.append(r[1]+self.image_base)
+            idc.SetColor(instr_addr, idc.CIC_ITEM, 0xB8FF94)
+            instr_executed.append(instr_addr)
         for instr in instr_executed:
             instr_executed_dict[instr] = instr_executed_dict.get(instr, 0) + 1
-        # Here we have only first instructions of the basic block, call instructions
-        # and instructions after call
-        for instr in instr_executed:
+        # Here we have only first instructions of the basic block, calls
+        # and instruction after call
+        for instr, count in instr_executed_dict.items():
             function_name = idc.GetFunctionName(instr)
             if function_name == "":
                 # i#11 We need special algorithm instead of GetFunctionName in "red"
                 # zones.
-                print "Unknown"
-                raise Exception ("Unknown function name")
+                print "Unknown function at ", hex(instr)
+                continue
             if self.functions.get(function_name, None) == None:
+                metrics_static.functions[function_name] = metrics_static.get_static_metrics(instr)
                 function_dynamic = Metrics_function_dynamic(function_name)
             else:
                 function_dynamic = self.functions[function_name]
-
+            
             bbls_dict = metrics_static.functions[function_name].bbls_boundaries
+
             for bbl_key, bbl in bbls_dict.items():
                 if hex(instr) in bbl and bbl[0] not in function_dynamic.bbls_boundaries_executed:
                     function_dynamic.bbls_boundaries_executed[bbl[0]] = bbl
@@ -110,36 +112,32 @@ class Metrics_dynamic:
                     if GetInstructionType(int(instr,16)) == CALL_INSTRUCTION:
                         function.calls_executed_count += 1
                     idc.SetColor(int(instr, 16), idc.CIC_ITEM, 0xB8FF94)
-            function.code_coverage = float(function.loc_executed_count)/metrics_static.functions[name].loc_count
+            if metrics_static.functions[name].loc_count != 0:
+                function.code_coverage = float(function.loc_executed_count)/metrics_static.functions[name].loc_count
             
             self.loc_executed_total += function.loc_executed_count
             self.bbls_executed_total += function.bbls_executed_count
             self.calls_executed_total += function.calls_executed_count
         
         self.functions_executed_total = len(self.functions)
-        self.code_coverage_total = float(self.loc_executed_total)/metrics_static.total_loc_count
+        if metrics_static.total_loc_count != 0:
+            self.code_coverage_total = float(self.loc_executed_total)/metrics_static.total_loc_count
     
-    def load_db(self, fname):
-        from_file = sqlite3.connect(fname)
-        return from_file
+    def load_trace(self, trace_name):
+        f = open(trace_name, "r")
+        trace = f.readlines()
+        return trace
 
-    def get_dynamic_metrics(self, dbname):
-        db = self.load_db(dbname)
-        self.image_base = idaapi.get_imagebase();    
-        c = db.cursor()
-        query = 'select i.prev_address, i.cur_address from trace i'
-        c.execute(query)
+    def get_dynamic_metrics(self, trace_name):
+        trace = self.load_trace(trace_name)
 
         # i#10 ida_metrics_static script needs refactoring b/c we don't need to
         # collect all metrics here.
         metrics_static = Metrics()
-        metrics_static.start_analysis()
-        self.get_basic_dynamic_metrics(c, metrics_static)
+        self.get_basic_dynamic_metrics(trace, metrics_static)
 
-print "Start CFG analysis"
-fname = idc.AskFile(0, ".db", "Choose sqlite db with trace data")
-#fname = "C:\pin-trace-01-28-15-42-42.db" db for tests
-
+print "Start analysis"
+fname = idc.AskFile(0, ".out", "Choose a trace file")
 metrics_dynamic = Metrics_dynamic()
 metrics_dynamic.get_dynamic_metrics(fname)
 print "done"
