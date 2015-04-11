@@ -121,7 +121,7 @@ VOID Fini(INT32 code, VOID *v)
 
 	while(marker)
 	{
-		OutFile << "ADDR: " << std::hex << marker->head << endl;
+		OutFile << std::hex << marker->head << endl;
 		marker = marker->next;
 	}
 
