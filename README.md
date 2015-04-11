@@ -1,5 +1,5 @@
 # IDAMetrics-static.py
-IDA plugins for software complexity metrics collection.
+IDA plugins for static software complexity metrics collection.
 
 This IDA scripts collects static software complexity metrics 
 for binary executable of x86 architecture.
@@ -71,9 +71,15 @@ for trace of executed application.
 
 Intel PIN DBI tool that allows to get trace of executed basic blocks.
 
-BUGS
+# Metrics efficiency analysis
+
+We tested metrics to find bugs in the following list of vulnerable apps: http://goo.gl/4dKypy
+
+The raw results are here: http://goo.gl/Kl0qBa
+
+#Bugs
 
 Please read attentively current issues before using these scripts. Many metrics
 were not originally created for binary code, so I made a lot of assumptions 
-during implementation and you should use results of these scripts very carefully.
+during implementation and you should use results of these scripts carefully.
 Please mail me if you find any inaccuracy or mistakes in the implementation.
