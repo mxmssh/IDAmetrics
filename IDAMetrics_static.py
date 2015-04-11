@@ -1,5 +1,5 @@
 """
-IDA-metrics_static plugin ver. 0.1
+IDAMetrics_static IDA plugin ver. 0.7
 
 Copyright (c) 2015, Maksim Shudrak (mxmssh@gmail.com)
 All rights reserved.
@@ -261,38 +261,13 @@ class Metrics:
                     print 'Skip'
                     function_ea = idc.NextFunction(function_ea)
                     continue
-                self.total_loc_count += self.functions[function_name].loc_count
-                self.total_bbl_count += self.functions[function_name].bbl_count
-                self.total_func_count += 1
-                self.total_condition_count += self.functions[function_name].condition_count
-                self.total_assign_count += self.functions[function_name].assign_count
-                self.R_total += self.functions[function_name].R
-
-                self.CC_modified_total += self.functions[function_name].CC_modified
-                self.Pivovarsky_total += self.functions[function_name].Pivovarsky
-                self.Harrison_total += self.functions[function_name].Harrison
-                self.boundary_values_total += self.functions[function_name].boundary_values
-
-                self.Halstead_total.n1 += self.functions[function_name].Halstead_basic.n1
-                self.Halstead_total.n2 += self.functions[function_name].Halstead_basic.n2
-                self.Halstead_total.N1 += self.functions[function_name].Halstead_basic.N1
-                self.Halstead_total.N2 += self.functions[function_name].Halstead_basic.N2
-
-                self.CC_total += self.functions[function_name].CC
-                self.CL_total += self.functions[function_name].CL
-                self.ABC_total += self.functions[function_name].ABC
-
-                self.span_metric_total += self.functions[function_name].span_metric
-                self.Oviedo_total += self.functions[function_name].Oviedo
-                self.Chepin_total += self.functions[function_name].Chepin
-                self.HenrynCafura_total += self.functions[function_name].HenrynCafura
-                self.CardnGlass_total += self.functions[function_name].CardnGlass
-                
-                if self.metrics_mask["cocol"] == 1:
-                    self.functions[function_name].Cocol = self.functions[function_name].Halstead_basic.B + self.functions[function_name].CC + self.functions[function_name].loc_count
-                
+                self.collect_total_metrics(function_name)
                 function_ea = idc.NextFunction(function_ea)
+        self.collect_final_metrics()
 
+    def collect_final_metrics(self):
+        ''' The routine collect some metrics that should be calculated after analysis
+        '''
         if self.total_func_count > 0:
             self.average_loc_count = self.total_loc_count / self.total_func_count
         if self.metrics_mask["h"] == 1 or self.metrics_mask["cocol"] == 1:
@@ -301,7 +276,41 @@ class Metrics:
             self.global_vars_metric_total = self.add_global_vars_metric()
         if self.metrics_mask["cocol"] == 1:
             self.Cocol_total += self.Halstead_total.B + self.CC_total + self.total_loc_count
+            
+    def collect_total_metrics(self, function_name):
+        ''' The routine is used to add function measures to total metrics evaluation
+        @function_name - name of function
+        '''        
+        self.total_loc_count += self.functions[function_name].loc_count
+        self.total_bbl_count += self.functions[function_name].bbl_count
+        self.total_func_count += 1
+        self.total_condition_count += self.functions[function_name].condition_count
+        self.total_assign_count += self.functions[function_name].assign_count
+        self.R_total += self.functions[function_name].R
 
+        self.CC_modified_total += self.functions[function_name].CC_modified
+        self.Pivovarsky_total += self.functions[function_name].Pivovarsky
+        self.Harrison_total += self.functions[function_name].Harrison
+        self.boundary_values_total += self.functions[function_name].boundary_values
+
+        self.Halstead_total.n1 += self.functions[function_name].Halstead_basic.n1
+        self.Halstead_total.n2 += self.functions[function_name].Halstead_basic.n2
+        self.Halstead_total.N1 += self.functions[function_name].Halstead_basic.N1
+        self.Halstead_total.N2 += self.functions[function_name].Halstead_basic.N2
+
+        self.CC_total += self.functions[function_name].CC
+        self.CL_total += self.functions[function_name].CL
+        self.ABC_total += self.functions[function_name].ABC
+
+        self.span_metric_total += self.functions[function_name].span_metric
+        self.Oviedo_total += self.functions[function_name].Oviedo
+        self.Chepin_total += self.functions[function_name].Chepin
+        self.HenrynCafura_total += self.functions[function_name].HenrynCafura
+        self.CardnGlass_total += self.functions[function_name].CardnGlass
+        
+        if self.metrics_mask["cocol"] == 1:
+            self.functions[function_name].Cocol = self.functions[function_name].Halstead_basic.B + self.functions[function_name].CC + self.functions[function_name].loc_count
+            
     def add_global_vars_metric(self):
         '''
         The function calculates access count to global variables.
@@ -310,7 +319,7 @@ class Metrics:
 
         total_metric_count = 0
         for function in self.functions:
-            if len(self.global_vars_dict):
+            if len(self.global_vars_dict) > 0:
                 self.functions[function].global_vars_metric = float(self.functions[function].global_vars_access)/len(self.global_vars_dict)
             total_metric_count += self.functions[function].global_vars_metric
         return total_metric_count
@@ -970,8 +979,7 @@ class Metrics:
         # R measure
         function_metrics.R = len(edges)/len(boundaries)
         #Basic blocks count
-        if self.metrics_mask["bbls"] == 1:
-            function_metrics.bbl_count = len(boundaries)
+        function_metrics.bbl_count = len(boundaries)
         #Jilb's metric: cl = CL/n
         if self.metrics_mask["jilb"] == 1:
             function_metrics.CL = (float(function_metrics.condition_count) + \
@@ -1062,7 +1070,7 @@ def init_analysis (metrics_used):
 
 
 class UI:
-    def __init__(self):
+    def __init__(self, callback):
         self.mask = []
         self.metrics_used = dict()
         self.top = Tkinter.Tk()
@@ -1092,24 +1100,30 @@ class UI:
                         onvalue = 1, offvalue = 0).pack(side=LEFT)      
 
         Button(bottomframe4, text = "Start", height=2, width = 10, \
-               command = lambda: self.GetUserChoice()).pack(side=LEFT)
+               command = lambda: self.GetUserChoice(callback)).pack(side=LEFT)
         Button(bottomframe4, text = "Calculate all", height=2, width = 10, \
-               command =lambda: self.CalculateAll()).pack(side=LEFT)
+               command =lambda: self.CalculateAll(callback)).pack(side=LEFT)
         self.top.mainloop()
         
-    def CalculateAll(self):
+    def CalculateAll(self, callback):
+        ''' The routine sets all metrics as used and calls callback function
+        @ callback - callback function
+        '''
         self.top.destroy()
         for i in metrics_list:
             self.metrics_used[i] = 1
-        init_analysis(self.metrics_used)
+        callback(self.metrics_used)
         return 0
 
-    def GetUserChoice(self):
+    def GetUserChoice(self, callback):
+        ''' The routine parses user choice and than calls callback function
+        @ callback - callback function
+        '''
         self.top.destroy()
         #parse user choice
         for iter,i in enumerate(metrics_list):
             self.metrics_used[i] = self.mask[iter].get()
-        init_analysis(self.metrics_used)
+        callback(self.metrics_used)
         return 0
 
 def save_results(metrics_total, name):
@@ -1198,7 +1212,7 @@ def main():
     print "Start metrics calculation" 
     idc.Wait() #wait while ida finish analysis
     if os.getenv('IDAPYTHON') != 'auto':
-        ui_setup = UI()
+        ui_setup = UI(init_analysis)
         print "done"
         return 0
     else: #hidden mode

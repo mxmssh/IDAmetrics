@@ -1,5 +1,5 @@
 '''
-ida_metrics_dynamic plugin ver 0.1
+IDAMetrics_dynamic IDA plugin ver 0.7
 
 Copyright (c) 2015, Maksim Shudrak (mxmssh@gmail.com)
 All rights reserved.
@@ -37,7 +37,6 @@ Supported:
     3. BBLs executed
     4. Calls executed
 
-    TODO: Script usage description
 
 '''
 
@@ -71,15 +70,25 @@ class Metrics_dynamic:
         self.calls_executed_total = 0
         self.functions = dict()
 
-    def get_basic_dynamic_metrics(self, trace, metrics_static):
-        
+    def get_basic_dynamic_metrics(self, trace, metrics_static, metrics_used):
+        ''' The basic routine to get all dynamic and static metrics 
+        @ trace - a list of executed instructions
+        @ metrics_static - static Metrics()
+        @ metrics_used - mask of used metrics
+        ''' 
         instr_executed = list()
+        null_mask = dict()
         instr_executed_dict = dict()
         for instr_addr in trace:
             instr_addr = int(instr_addr, 0) + self.image_base
             # set color for traced instructions
             idc.SetColor(instr_addr, idc.CIC_ITEM, 0xB8FF94)
             instr_executed.append(instr_addr)
+       
+        # get basic metrics required for code coverage assessment
+        metrics_temp = Metrics()
+        metrics_temp.start_analysis(metrics_used)
+        
         for instr in instr_executed:
             instr_executed_dict[instr] = instr_executed_dict.get(instr, 0) + 1
         # Here we have only first instructions of the basic block, calls
@@ -92,7 +101,8 @@ class Metrics_dynamic:
                 print "Unknown function at ", hex(instr)
                 continue
             if self.functions.get(function_name, None) == None:
-                metrics_static.functions[function_name] = metrics_static.get_static_metrics(instr)
+                metrics_static.functions[function_name] = metrics_temp.functions[function_name]
+                metrics_static.collect_total_metrics(function_name)
                 function_dynamic = Metrics_function_dynamic(function_name)
             else:
                 function_dynamic = self.functions[function_name]
@@ -103,7 +113,9 @@ class Metrics_dynamic:
                 if hex(instr) in bbl and bbl[0] not in function_dynamic.bbls_boundaries_executed:
                     function_dynamic.bbls_boundaries_executed[bbl[0]] = bbl
             self.functions[function_name] = function_dynamic
-
+        print "collect final metrics"
+        metrics_static.collect_final_metrics()
+        
         for name,function in self.functions.items():
             function.bbls_executed_count = len(function.bbls_boundaries_executed)
             for bbl_key, bbl in function.bbls_boundaries_executed.items():
@@ -120,24 +132,155 @@ class Metrics_dynamic:
             self.calls_executed_total += function.calls_executed_count
         
         self.functions_executed_total = len(self.functions)
+        #restore total values
+        metrics_static.total_loc_count = metrics_temp.total_loc_count
+        metrics_static.total_func_count = metrics_temp.total_func_count
+        metrics_static.total_bbl_count = metrics_temp.total_bbl_count
+        metrics_static.total_assign_count = metrics_temp.total_assign_count
         if metrics_static.total_loc_count != 0:
             self.code_coverage_total = float(self.loc_executed_total)/metrics_static.total_loc_count
-    
+        
+
     def load_trace(self, trace_name):
+        ''' The routine loads trace of executed bbls 
+        @ trace_name - name of trace
+        @ trace - list of addresses
+        '''
         f = open(trace_name, "r")
         trace = f.readlines()
+        # we need to check trace before return it
         return trace
 
-    def get_dynamic_metrics(self, trace_name):
+    def get_dynamic_metrics(self, trace_name, metrics_used):
+        ''' The routine starts analysis 
+        @trace_name - name of trace to analyze
+        @metrics_used - mask of used metrics
+        '''
         trace = self.load_trace(trace_name)
-
-        # i#10 ida_metrics_static script needs refactoring b/c we don't need to
-        # collect all metrics here.
         metrics_static = Metrics()
-        self.get_basic_dynamic_metrics(trace, metrics_static)
+        metrics_static.metrics_mask = metrics_used
+        # collect metrics only for trace
+        self.get_basic_dynamic_metrics(trace, metrics_static, metrics_used)
+        self.save_dynamic_results(metrics_static)
 
-print "Start analysis"
-fname = idc.AskFile(0, ".out", "Choose a trace file")
-metrics_dynamic = Metrics_dynamic()
-metrics_dynamic.get_dynamic_metrics(fname)
-print "done"
+        
+    def save_dynamic_results(self, metrics_static):
+        ''' The routine saves results in specified file 
+        @metrics_static - static metrics results
+        @return - None
+        '''
+        
+        print 'Average lines of code in the executed functions:', metrics_static.average_loc_count
+        print 'Total number of functions:', metrics_static.total_func_count
+        print 'Total lines of code:', metrics_static.total_loc_count
+        print 'Total bbls count:', metrics_static.total_bbl_count
+        print 'Total assignments count:', metrics_static.total_assign_count
+        print "----Total metrics for trace----\n"
+        print 'Cyclomatic complexity', metrics_static.CC_total
+        print 'Jilb\'s metric', metrics_static.CL_total
+        print 'ABC:', metrics_static.ABC_total
+        print 'Halstead:', metrics_static.Halstead_total.B
+        print 'Pivovarsky:', metrics_static.Pivovarsky_total
+        print 'Harrison:', metrics_static.Harrison_total
+        print 'Boundary value', metrics_static.boundary_values_total
+        print 'Span metric', metrics_static.span_metric_total
+        print 'Global var metric', metrics_static.global_vars_metric_total
+        print 'Oviedo metric', metrics_static.Oviedo_total
+        print 'Chepin metric', metrics_static.Chepin_total
+        print 'Henry&Cafura metric', metrics_static.HenrynCafura_total
+        print 'Cocol metric', metrics_static.Cocol_total
+        print 'Card&Glass metric', metrics_static.CardnGlass_total
+        print '------Dynamic metrics ------\n'
+        print 'LOC executed:', self.loc_executed_total
+        print 'BBLs executed:', self.bbls_executed_total
+        print 'Functions executed:', self.functions_executed_total
+        print 'Calls executed in the functions:', self.calls_executed_total
+        print 'Code coverage:',  self.code_coverage_total
+        #Save in log file
+        current_time = strftime("%Y-%m-%d_%H-%M-%S")
+        analyzed_file = idc.GetInputFile()
+        analyzed_file = analyzed_file.replace(".","_")
+        mask = analyzed_file + "_dynamic_" + current_time + ".txt"
+        name = AskFile(1, mask, "Where to save metrics ?")
+        if name == None:
+            return 0
+        f = open(name, 'w')
+
+        f.write('Average lines of code in the executed functions: ' + str(metrics_static.average_loc_count) + "\n")
+        f.write('Total number of functions: ' + str(metrics_static.total_func_count) + "\n")
+        f.write('Total lines of code: ' + str(metrics_static.total_loc_count) + "\n")
+        f.write('Total bbls count: ' + str(metrics_static.total_bbl_count) + "\n")
+        f.write('Total assignments count: ' + str(metrics_static.total_assign_count) + "\n")
+        f.write('----Total metrics for trace----\n')
+        f.write('Cyclomatic complexity: ' + str(metrics_static.CC_total) + "\n")
+        f.write('Jilb\'s metric: ' + str(metrics_static.CL_total) + "\n")
+        f.write('ABC: ' + str(metrics_static.ABC_total) + "\n")
+        f.write('Halstead B:' + str(metrics_static.Halstead_total.B) + "\n")
+        f.write('Pivovarsky: ' + str(metrics_static.Pivovarsky_total) + "\n")
+        f.write('Harrison: ' + str(metrics_static.Harrison_total) + "\n")
+        f.write('Boundary value: ' + str(metrics_static.boundary_values_total) + "\n")
+        f.write('Span metric: ' + str(metrics_static.span_metric_total) + "\n")
+        f.write('Oviedo metric: ' + str(metrics_static.Oviedo_total) + "\n")
+        f.write('Chepin metric: ' + str(metrics_static.Chepin_total) + "\n")
+        f.write('Henry&Cafura metric: ' + str(metrics_static.HenrynCafura_total) + "\n")
+        f.write('Cocol metric: ' + str(metrics_static.Cocol_total) + "\n")
+        f.write('CardnGlass metric: ' + str(metrics_static.CardnGlass_total) + "\n")
+        f.write('------Dynamic metrics ------\n')
+        f.write('LOC executed: ' + str(self.loc_executed_total) + "\n")
+        f.write('BBLs executed: ' + str(self.bbls_executed_total) + "\n")
+        f.write('Calls executed in functions: ' + str(self.calls_executed_total) + "\n")
+        f.write('Functions executed: ' + str(self.functions_executed_total) + "\n")
+        f.write('Code coverage: ' + str(self.code_coverage_total) + "\n")        
+
+        for function in metrics_static.functions:
+            f.write(str(function) + "\n")
+            f.write('  Lines of code in the function: ' + str(metrics_static.functions[function].loc_count) + "\n")
+            f.write('  Bbls count: ' + str(metrics_static.functions[function].bbl_count) + "\n")
+            f.write('  Condition count: ' + str(metrics_static.functions[function].condition_count) + "\n")
+            f.write('  Calls count: ' + str(metrics_static.functions[function].calls_count) + "\n")
+            f.write('  Assignments count: ' + str(metrics_static.functions[function].assign_count) + "\n")
+            f.write('  Cyclomatic complexity: ' + str(metrics_static.functions[function].CC) + "\n")
+            f.write('  Cyclomatic complexity modified: ' + str(metrics_static.functions[function].CC_modified) + "\n")
+            f.write('  Jilb\'s metric: ' + str(metrics_static.functions[function].CL) + "\n")
+            f.write('  ABC: ' + str(metrics_static.functions[function].ABC) + "\n")
+            f.write('  R count: ' + str(metrics_static.functions[function].R) + "\n")
+
+            f.write('    Halstead.B: ' + str(metrics_static.functions[function].Halstead_basic.B) + "\n")
+            f.write('    Halstead.E: ' + str(metrics_static.functions[function].Halstead_basic.E) + "\n")
+            f.write('    Halstead.D: ' + str(metrics_static.functions[function].Halstead_basic.D) + "\n")
+            f.write('    Halstead.N*: ' + str(metrics_static.functions[function].Halstead_basic.Ni) + "\n")
+            f.write('    Halstead.V: ' + str(metrics_static.functions[function].Halstead_basic.V) + "\n")
+            f.write('    Halstead.N1: ' + str(metrics_static.functions[function].Halstead_basic.N1) + "\n")
+            f.write('    Halstead.N2: ' + str(metrics_static.functions[function].Halstead_basic.N2) + "\n")
+            f.write('    Halstead.n1: ' + str(metrics_static.functions[function].Halstead_basic.n1) + "\n")
+            f.write('    Halstead.n2: ' + str(metrics_static.functions[function].Halstead_basic.n2) + "\n")
+
+            f.write('  Pivovarsky: ' + str(metrics_static.functions[function].Pivovarsky) + "\n")
+            f.write('  Harrison: ' + str(metrics_static.functions[function].Harrison) + "\n")
+            f.write('  Cocol metric' + str(metrics_static.functions[function].Cocol) + "\n")
+
+            f.write('  Boundary value: ' + str(metrics_static.functions[function].boundary_values) + "\n")
+            f.write('  Span metric: ' + str(metrics_static.functions[function].span_metric) + "\n")
+            f.write('  Global vars metric:' + str(metrics_static.functions[function].global_vars_metric) + "\n")
+            f.write('  Oviedo metric: ' + str(metrics_static.functions[function].Oviedo) + "\n")
+            f.write('  Chepin metric: ' + str(metrics_static.functions[function].Chepin) + "\n")
+            f.write('  CardnGlass metric: ' + str(metrics_static.functions[function].CardnGlass) + "\n")
+            f.write('  Henry&Cafura metric: ' + str(metrics_static.functions[function].HenrynCafura) + "\n")
+        f.close()
+        
+
+def prepare(metrics_used):
+    fname = idc.AskFile(0, ".out", "Choose a trace file")
+    if fname == None:
+        print "You need to specify trace to get dynamic metrics"
+        return 0
+    print "Start trace analysis"
+    metrics_dynamic = Metrics_dynamic()
+    metrics_dynamic.get_dynamic_metrics(fname, metrics_used)
+
+def main():
+    ui_Setup = UI(prepare)
+    print "done"
+
+if __name__ == "__main__":
+    main()
