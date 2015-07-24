@@ -1,7 +1,7 @@
 # IDAMetrics-static.py
 IDA plugins for static software complexity metrics collection.
 
-This IDA scripts collects static software complexity metrics 
+This IDA script collects static software complexity metrics 
 for binary executable of x86 architecture.
 
 Minimal requirements:
@@ -73,9 +73,16 @@ Intel PIN DBI tool that allows to get trace of executed basic blocks.
 
 # Metrics efficiency analysis
 
-We tested metrics to find bugs in the following list of vulnerable apps: http://goo.gl/4dKypy
+We tested metrics to predict bugs in the following list of vulnerable apps: http://goo.gl/4dKypy
 
 The raw results are here: http://goo.gl/Kl0qBa
+
+# sorter.py
+
+This IDA Python script aimed to prioritize some test cases based on their coverage
+complexity. By default Halstead B metric is used to get coverage complexity.
+Also script excludes not unique cases based on executed trace.
+
 
 #Bugs
 

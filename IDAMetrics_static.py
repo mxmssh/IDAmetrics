@@ -99,7 +99,7 @@ metrics_list = ["loc", "bbls", "calls", "condit", "assign", "cc", "cc_mod", "jil
                 "harr", "bound", "span", "global", "oviedo", "chepin", "c&s", "h&c", "cocol"]
 metrics_names = ["Lines of code", "Basic blocks count", "Routines calls count", "Conditions count",\
                  "Assignments count", "Cycl. complexity", "Cycl. complexity mod.", "Jilb", "ABC", \
-                 "Pivovarsky", "Halsted", "Harrison", "Boundary values", "span metric", \
+                 "Pivovarsky", "Halstead", "Harrison", "Boundary values", "span metric", \
                  "Global vars access count", "Oviedo", "Chepin", "Card & Glass", "Henry & Cafura",\
                  "Cocol"]
 # group of assignment instructions ($5.1.1 vol.1 Intel x86 manual):
@@ -1217,6 +1217,7 @@ def main():
         return 0
     else: #hidden mode
         metrics_mask = dict()
+        # calculate all metrics
         for i in metrics_list:
             metrics_mask[i] = 1
 

@@ -36,6 +36,7 @@ Supported:
     2. Lines of code executed
     3. BBLs executed
     4. Calls executed
+    5. Highlight executed trace in IDA CFG
 
 
 '''
@@ -59,6 +60,7 @@ class Metrics_function_dynamic:
         self.bbls_boundaries_executed = dict()
         self.calls_executed_count = 0
         self.code_coverage = 0.0
+        self.ask_save = True
 
 class Metrics_dynamic:
     def __init__(self):
@@ -162,7 +164,8 @@ class Metrics_dynamic:
         # collect metrics only for trace
         self.get_basic_dynamic_metrics(trace, metrics_static, metrics_used)
         self.save_dynamic_results(metrics_static)
-
+        return metrics_static
+        
         
     def save_dynamic_results(self, metrics_static):
         ''' The routine saves results in specified file 
@@ -197,76 +200,77 @@ class Metrics_dynamic:
         print 'Calls executed in the functions:', self.calls_executed_total
         print 'Code coverage:',  self.code_coverage_total
         #Save in log file
-        current_time = strftime("%Y-%m-%d_%H-%M-%S")
-        analyzed_file = idc.GetInputFile()
-        analyzed_file = analyzed_file.replace(".","_")
-        mask = analyzed_file + "_dynamic_" + current_time + ".txt"
-        name = AskFile(1, mask, "Where to save metrics ?")
-        if name == None:
-            return 0
-        f = open(name, 'w')
+        if (self.ask_save == True):
+            current_time = strftime("%Y-%m-%d_%H-%M-%S")
+            analyzed_file = idc.GetInputFile()
+            analyzed_file = analyzed_file.replace(".","_")
+            mask = analyzed_file + "_dynamic_" + current_time + ".txt"
+            name = idc.AskFile(1, mask, "Where to save metrics ?")
+            if name == None:
+                return 0
+            f = open(name, 'w')
 
-        f.write('Average lines of code in the executed functions: ' + str(metrics_static.average_loc_count) + "\n")
-        f.write('Total number of functions: ' + str(metrics_static.total_func_count) + "\n")
-        f.write('Total lines of code: ' + str(metrics_static.total_loc_count) + "\n")
-        f.write('Total bbls count: ' + str(metrics_static.total_bbl_count) + "\n")
-        f.write('Total assignments count: ' + str(metrics_static.total_assign_count) + "\n")
-        f.write('----Total metrics for trace----\n')
-        f.write('Cyclomatic complexity: ' + str(metrics_static.CC_total) + "\n")
-        f.write('Jilb\'s metric: ' + str(metrics_static.CL_total) + "\n")
-        f.write('ABC: ' + str(metrics_static.ABC_total) + "\n")
-        f.write('Halstead B:' + str(metrics_static.Halstead_total.B) + "\n")
-        f.write('Pivovarsky: ' + str(metrics_static.Pivovarsky_total) + "\n")
-        f.write('Harrison: ' + str(metrics_static.Harrison_total) + "\n")
-        f.write('Boundary value: ' + str(metrics_static.boundary_values_total) + "\n")
-        f.write('Span metric: ' + str(metrics_static.span_metric_total) + "\n")
-        f.write('Oviedo metric: ' + str(metrics_static.Oviedo_total) + "\n")
-        f.write('Chepin metric: ' + str(metrics_static.Chepin_total) + "\n")
-        f.write('Henry&Cafura metric: ' + str(metrics_static.HenrynCafura_total) + "\n")
-        f.write('Cocol metric: ' + str(metrics_static.Cocol_total) + "\n")
-        f.write('CardnGlass metric: ' + str(metrics_static.CardnGlass_total) + "\n")
-        f.write('------Dynamic metrics ------\n')
-        f.write('LOC executed: ' + str(self.loc_executed_total) + "\n")
-        f.write('BBLs executed: ' + str(self.bbls_executed_total) + "\n")
-        f.write('Calls executed in functions: ' + str(self.calls_executed_total) + "\n")
-        f.write('Functions executed: ' + str(self.functions_executed_total) + "\n")
-        f.write('Code coverage: ' + str(self.code_coverage_total) + "\n")        
+            f.write('Average lines of code in the executed functions: ' + str(metrics_static.average_loc_count) + "\n")
+            f.write('Total number of functions: ' + str(metrics_static.total_func_count) + "\n")
+            f.write('Total lines of code: ' + str(metrics_static.total_loc_count) + "\n")
+            f.write('Total bbls count: ' + str(metrics_static.total_bbl_count) + "\n")
+            f.write('Total assignments count: ' + str(metrics_static.total_assign_count) + "\n")
+            f.write('----Total metrics for trace----\n')
+            f.write('Cyclomatic complexity: ' + str(metrics_static.CC_total) + "\n")
+            f.write('Jilb\'s metric: ' + str(metrics_static.CL_total) + "\n")
+            f.write('ABC: ' + str(metrics_static.ABC_total) + "\n")
+            f.write('Halstead B:' + str(metrics_static.Halstead_total.B) + "\n")
+            f.write('Pivovarsky: ' + str(metrics_static.Pivovarsky_total) + "\n")
+            f.write('Harrison: ' + str(metrics_static.Harrison_total) + "\n")
+            f.write('Boundary value: ' + str(metrics_static.boundary_values_total) + "\n")
+            f.write('Span metric: ' + str(metrics_static.span_metric_total) + "\n")
+            f.write('Oviedo metric: ' + str(metrics_static.Oviedo_total) + "\n")
+            f.write('Chepin metric: ' + str(metrics_static.Chepin_total) + "\n")
+            f.write('Henry&Cafura metric: ' + str(metrics_static.HenrynCafura_total) + "\n")
+            f.write('Cocol metric: ' + str(metrics_static.Cocol_total) + "\n")
+            f.write('CardnGlass metric: ' + str(metrics_static.CardnGlass_total) + "\n")
+            f.write('------Dynamic metrics ------\n')
+            f.write('LOC executed: ' + str(self.loc_executed_total) + "\n")
+            f.write('BBLs executed: ' + str(self.bbls_executed_total) + "\n")
+            f.write('Calls executed in functions: ' + str(self.calls_executed_total) + "\n")
+            f.write('Functions executed: ' + str(self.functions_executed_total) + "\n")
+            f.write('Code coverage: ' + str(self.code_coverage_total) + "\n")        
 
-        for function in metrics_static.functions:
-            f.write(str(function) + "\n")
-            f.write('  Lines of code in the function: ' + str(metrics_static.functions[function].loc_count) + "\n")
-            f.write('  Bbls count: ' + str(metrics_static.functions[function].bbl_count) + "\n")
-            f.write('  Condition count: ' + str(metrics_static.functions[function].condition_count) + "\n")
-            f.write('  Calls count: ' + str(metrics_static.functions[function].calls_count) + "\n")
-            f.write('  Assignments count: ' + str(metrics_static.functions[function].assign_count) + "\n")
-            f.write('  Cyclomatic complexity: ' + str(metrics_static.functions[function].CC) + "\n")
-            f.write('  Cyclomatic complexity modified: ' + str(metrics_static.functions[function].CC_modified) + "\n")
-            f.write('  Jilb\'s metric: ' + str(metrics_static.functions[function].CL) + "\n")
-            f.write('  ABC: ' + str(metrics_static.functions[function].ABC) + "\n")
-            f.write('  R count: ' + str(metrics_static.functions[function].R) + "\n")
+            for function in metrics_static.functions:
+                f.write(str(function) + "\n")
+                f.write('  Lines of code in the function: ' + str(metrics_static.functions[function].loc_count) + "\n")
+                f.write('  Bbls count: ' + str(metrics_static.functions[function].bbl_count) + "\n")
+                f.write('  Condition count: ' + str(metrics_static.functions[function].condition_count) + "\n")
+                f.write('  Calls count: ' + str(metrics_static.functions[function].calls_count) + "\n")
+                f.write('  Assignments count: ' + str(metrics_static.functions[function].assign_count) + "\n")
+                f.write('  Cyclomatic complexity: ' + str(metrics_static.functions[function].CC) + "\n")
+                f.write('  Cyclomatic complexity modified: ' + str(metrics_static.functions[function].CC_modified) + "\n")
+                f.write('  Jilb\'s metric: ' + str(metrics_static.functions[function].CL) + "\n")
+                f.write('  ABC: ' + str(metrics_static.functions[function].ABC) + "\n")
+                f.write('  R count: ' + str(metrics_static.functions[function].R) + "\n")
 
-            f.write('    Halstead.B: ' + str(metrics_static.functions[function].Halstead_basic.B) + "\n")
-            f.write('    Halstead.E: ' + str(metrics_static.functions[function].Halstead_basic.E) + "\n")
-            f.write('    Halstead.D: ' + str(metrics_static.functions[function].Halstead_basic.D) + "\n")
-            f.write('    Halstead.N*: ' + str(metrics_static.functions[function].Halstead_basic.Ni) + "\n")
-            f.write('    Halstead.V: ' + str(metrics_static.functions[function].Halstead_basic.V) + "\n")
-            f.write('    Halstead.N1: ' + str(metrics_static.functions[function].Halstead_basic.N1) + "\n")
-            f.write('    Halstead.N2: ' + str(metrics_static.functions[function].Halstead_basic.N2) + "\n")
-            f.write('    Halstead.n1: ' + str(metrics_static.functions[function].Halstead_basic.n1) + "\n")
-            f.write('    Halstead.n2: ' + str(metrics_static.functions[function].Halstead_basic.n2) + "\n")
+                f.write('    Halstead.B: ' + str(metrics_static.functions[function].Halstead_basic.B) + "\n")
+                f.write('    Halstead.E: ' + str(metrics_static.functions[function].Halstead_basic.E) + "\n")
+                f.write('    Halstead.D: ' + str(metrics_static.functions[function].Halstead_basic.D) + "\n")
+                f.write('    Halstead.N*: ' + str(metrics_static.functions[function].Halstead_basic.Ni) + "\n")
+                f.write('    Halstead.V: ' + str(metrics_static.functions[function].Halstead_basic.V) + "\n")
+                f.write('    Halstead.N1: ' + str(metrics_static.functions[function].Halstead_basic.N1) + "\n")
+                f.write('    Halstead.N2: ' + str(metrics_static.functions[function].Halstead_basic.N2) + "\n")
+                f.write('    Halstead.n1: ' + str(metrics_static.functions[function].Halstead_basic.n1) + "\n")
+                f.write('    Halstead.n2: ' + str(metrics_static.functions[function].Halstead_basic.n2) + "\n")
 
-            f.write('  Pivovarsky: ' + str(metrics_static.functions[function].Pivovarsky) + "\n")
-            f.write('  Harrison: ' + str(metrics_static.functions[function].Harrison) + "\n")
-            f.write('  Cocol metric' + str(metrics_static.functions[function].Cocol) + "\n")
+                f.write('  Pivovarsky: ' + str(metrics_static.functions[function].Pivovarsky) + "\n")
+                f.write('  Harrison: ' + str(metrics_static.functions[function].Harrison) + "\n")
+                f.write('  Cocol metric' + str(metrics_static.functions[function].Cocol) + "\n")
 
-            f.write('  Boundary value: ' + str(metrics_static.functions[function].boundary_values) + "\n")
-            f.write('  Span metric: ' + str(metrics_static.functions[function].span_metric) + "\n")
-            f.write('  Global vars metric:' + str(metrics_static.functions[function].global_vars_metric) + "\n")
-            f.write('  Oviedo metric: ' + str(metrics_static.functions[function].Oviedo) + "\n")
-            f.write('  Chepin metric: ' + str(metrics_static.functions[function].Chepin) + "\n")
-            f.write('  CardnGlass metric: ' + str(metrics_static.functions[function].CardnGlass) + "\n")
-            f.write('  Henry&Cafura metric: ' + str(metrics_static.functions[function].HenrynCafura) + "\n")
-        f.close()
+                f.write('  Boundary value: ' + str(metrics_static.functions[function].boundary_values) + "\n")
+                f.write('  Span metric: ' + str(metrics_static.functions[function].span_metric) + "\n")
+                f.write('  Global vars metric:' + str(metrics_static.functions[function].global_vars_metric) + "\n")
+                f.write('  Oviedo metric: ' + str(metrics_static.functions[function].Oviedo) + "\n")
+                f.write('  Chepin metric: ' + str(metrics_static.functions[function].Chepin) + "\n")
+                f.write('  CardnGlass metric: ' + str(metrics_static.functions[function].CardnGlass) + "\n")
+                f.write('  Henry&Cafura metric: ' + str(metrics_static.functions[function].HenrynCafura) + "\n")
+            f.close()
         
 
 def prepare(metrics_used):
@@ -275,6 +279,7 @@ def prepare(metrics_used):
         print "You need to specify trace to get dynamic metrics"
         return 0
     print "Start trace analysis"
+
     metrics_dynamic = Metrics_dynamic()
     metrics_dynamic.get_dynamic_metrics(fname, metrics_used)
 

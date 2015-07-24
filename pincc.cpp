@@ -28,7 +28,7 @@ either expressed or implied, of the FreeBSD Project.
 */
 
 /** pincc tool
- *  This is a Intel PIN DBI tool that allows to get trace of executed basic blocks.
+ *  This is Intel PIN DBI tool that allows to get trace of executed basic blocks.
  */
  
 #include <iostream>
