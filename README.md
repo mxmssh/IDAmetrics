@@ -2,7 +2,7 @@
 IDA plugins for static software complexity metrics collection.
 
 This IDA script collects static software complexity metrics 
-for binary executable of x86 architecture.
+for binary executables of x86 architecture.
 
 Minimal requirements:
 
@@ -64,8 +64,8 @@ Additional functionality:
 
 IDA plugins for trace complexity assessment.
 
-This IDA scripts allows to collect complexity only for 
-for trace of executed application.
+This IDA script allows to calculate complexity of executed trace. The pincc.cpp described
+below may be used to extract such trace from an application.
 
 # pincc.cpp
 
