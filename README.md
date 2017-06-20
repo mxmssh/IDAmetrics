@@ -6,7 +6,7 @@ for binary executables of x86 architecture.
 
 Minimal requirements:
 
-IDA 5.5.0
+IDA 5.5.0 (32 bit)
 
 Python 2.5
 
