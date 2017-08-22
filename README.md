@@ -60,6 +60,20 @@ Additional functionality:
      
      - basic block boundaries generation (function)
 
+The tool is based on [this paper.](https://www.researchgate.net/publication/312577578_Improving_Fuzzing_Using_Software_Complexity_Metrics)
+
+BibTeX:
+```
+@inproceedings{shudrak2015improving,
+    title={Improving fuzzing using software complexity metrics}, 
+    author={Shudrak, Maksim O and Zolotarev, Vyacheslav V},
+    booktitle={International Conference on Information Security and Cryptology},  
+    pages={246--261},
+    year={2015},
+    organization={Springer}
+}
+```
+
 # IDAMetrics-dynamic.py
 
 IDA plugins for trace complexity assessment.
