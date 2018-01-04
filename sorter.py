@@ -16,7 +16,7 @@ modification, are permitted provided that the following conditions are met:
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COsssPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
 ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -36,9 +36,10 @@ Also script excludes not unique cases based on executed trace.
 
 Firstly the script asks user to specify first trace in the folder with test cases
 to start prioritization. Folder should containts the following data:
-test_case test_case_coverage e.g (file1.pdf file1.pdf_coverage file2.pdf file2.pdf_coverage etc.)
+test_case test_case_coverage e.g (file1.pdf file1.pdf_coverage file2.pdf
+file2.pdf_coverage etc.)
 
-Minimal requirements:
+Minimal requirements (tested):
 IDA 5.5.0
 Python 2.5
 IDAPython 1.2.0
